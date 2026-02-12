@@ -1,0 +1,14 @@
+{
+  "name": "banner-schedule-slack",
+  "version": "1.0.0",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.17.0",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.0",
+    "puppeteer": "^24.37.2"
+  }
+}

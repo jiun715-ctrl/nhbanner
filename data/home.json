@@ -1,0 +1,94 @@
+[
+  {
+    "department": "테스트부서",
+    "manager": "테스트담당자",
+    "banner": "테스트명",
+    "startDate": "2026-02-04",
+    "endDate": "2026-02-12",
+    "rank": 1,
+    "createdAt": "2026-02-04T23:14:36.519Z"
+  },
+  {
+    "department": "테스트부서2",
+    "manager": "테스트담당자2",
+    "banner": "테스트명2",
+    "startDate": "2026-02-01",
+    "endDate": "2026-02-13",
+    "rank": 1,
+    "createdAt": "2026-02-04T23:36:01.516Z"
+  },
+  {
+    "id": "1770249014383",
+    "department": "테스트부서3",
+    "manager": "테스트담당자3",
+    "banner": "테스트명3",
+    "startDate": "2026-02-06",
+    "endDate": "2026-02-08",
+    "rank": 2,
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-04T23:50:14.383Z",
+    "updatedAt": "2026-02-05T07:43:07.148Z"
+  },
+  {
+    "id": "1770250851720",
+    "department": "테스트부서명4",
+    "manager": "테스트담당자4",
+    "banner": "테스트배너4 수정하기눌러봄",
+    "startDate": "2026-02-04",
+    "endDate": "2026-02-06",
+    "rank": 2,
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-05T00:20:51.720Z",
+    "updatedAt": "2026-02-05T04:11:39.222Z"
+  },
+  {
+    "id": "1770278275661",
+    "department": "테스트6대기순번첫번째",
+    "manager": "대기해서슬픈담당자6",
+    "banner": "대기해서슬픈배너6",
+    "startDate": "2026-02-03",
+    "endDate": "2026-02-10",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-05T07:57:55.661Z"
+  },
+  {
+    "id": "1770278307403",
+    "department": "대기배너테스트7",
+    "manager": "대기해서슬픈담당자7",
+    "banner": "대기해서슬픈배너7",
+    "startDate": "2026-02-04",
+    "endDate": "2026-02-18",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-05T07:58:27.403Z"
+  },
+  {
+    "id": "1770278331234",
+    "department": "대기배너테스트8",
+    "manager": "대기해서슬픈담당자8",
+    "banner": "대기해서슬픈배너8",
+    "startDate": "2026-02-04",
+    "endDate": "2026-02-09",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-05T07:58:51.234Z"
+  },
+  {
+    "id": "1770278953881",
+    "department": "테스트부서",
+    "manager": "김수연",
+    "banner": "디지털1등",
+    "startDate": "2026-02-05",
+    "endDate": "2026-02-08",
+    "createdBy": "U0870TK7V5G",
+    "createdAt": "2026-02-05T08:09:13.881Z"
+  },
+  {
+    "id": "1770883230616",
+    "department": "홈배너테스트15",
+    "manager": "홈배너테스트15",
+    "banner": "홈배너테스트15",
+    "startDate": "2026-02-09",
+    "endDate": "2026-02-13",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-12T08:00:30.616Z"
+  }
+]

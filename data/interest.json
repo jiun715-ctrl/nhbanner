@@ -1,0 +1,32 @@
+[
+  {
+    "id": "1770868196085",
+    "department": "관심그룹테스트1",
+    "manager": "관심그룹담당자1",
+    "banner": "관심그룹탭배너1",
+    "startDate": "2026-02-11",
+    "endDate": "2026-02-16",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-12T03:49:56.085Z"
+  },
+  {
+    "id": "1770881791059",
+    "department": "관심그룹테스트 2",
+    "manager": "관심그룹테스트 2",
+    "banner": "관심그룹테스트 2",
+    "startDate": "2026-02-13",
+    "endDate": "2026-02-13",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-12T07:36:31.059Z"
+  },
+  {
+    "id": "1770883178700",
+    "department": "관심그룹탭배너테스트2",
+    "manager": "관심그룹탭배너테스트2",
+    "banner": "관심그룹탭배너테스트2",
+    "startDate": "2026-02-09",
+    "endDate": "2026-02-11",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-12T07:59:38.700Z"
+  }
+]
