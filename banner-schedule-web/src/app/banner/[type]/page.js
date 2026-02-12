@@ -61,14 +61,15 @@ export default function BannerPage() {
    * 타입 기반 API 호출
    * =============================== */
 
-  useEffect(() => {
-    if (!type) return;
+  const apiBase = process.env.NEXT_PUBLIC_API_BASE;
 
-    fetch(`http://localhost:3000/api/banner/${type}`)
-      .then(res => res.json())
+  useEffect(() => {
+    fetch(`${apiBase}/api/banner/${type}`, { cache: "no-store" })
+      .then((res) => res.json())
       .then(setBanners)
       .catch(console.error);
   }, [type]);
+
 
   /* ===============================
    * 배너명 → 색상 매핑

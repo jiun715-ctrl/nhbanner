@@ -79,9 +79,11 @@ function BannerPage() {
     const [selectedDate, setSelectedDate] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
     /* ===============================
    * 타입 기반 API 호출
-   * =============================== */ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
-        if (!type) return;
-        fetch(`http://localhost:3000/api/banner/${type}`).then((res)=>res.json()).then(setBanners).catch(console.error);
+   * =============================== */ const apiBase = process.env.NEXT_PUBLIC_API_BASE;
+    (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useEffect"])(()=>{
+        fetch(`${apiBase}/api/banner/${type}`, {
+            cache: "no-store"
+        }).then((res)=>res.json()).then(setBanners).catch(console.error);
     }, [
         type
     ]);
@@ -125,7 +127,7 @@ function BannerPage() {
                             ]
                         }, void 0, true, {
                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                            lineNumber: 112,
+                            lineNumber: 113,
                             columnNumber: 11
                         }, this),
                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -137,7 +139,7 @@ function BannerPage() {
                                     children: "◀"
                                 }, void 0, false, {
                                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                    lineNumber: 117,
+                                    lineNumber: 118,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -149,7 +151,7 @@ function BannerPage() {
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                    lineNumber: 123,
+                                    lineNumber: 124,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -158,19 +160,19 @@ function BannerPage() {
                                     children: "▶"
                                 }, void 0, false, {
                                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                    lineNumber: 126,
+                                    lineNumber: 127,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                            lineNumber: 116,
+                            lineNumber: 117,
                             columnNumber: 11
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                    lineNumber: 111,
+                    lineNumber: 112,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -188,12 +190,12 @@ function BannerPage() {
                             children: d
                         }, d, false, {
                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                            lineNumber: 138,
+                            lineNumber: 139,
                             columnNumber: 13
                         }, this))
                 }, void 0, false, {
                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                    lineNumber: 136,
+                    lineNumber: 137,
                     columnNumber: 9
                 }, this),
                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -217,7 +219,7 @@ function BannerPage() {
                                     children: date.getDate()
                                 }, void 0, false, {
                                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                    lineNumber: 170,
+                                    lineNumber: 171,
                                     columnNumber: 17
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -228,7 +230,7 @@ function BannerPage() {
                                                 children: item.banner
                                             }, `${item.id}-${dateStr}`, false, {
                                                 fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                                lineNumber: 176,
+                                                lineNumber: 177,
                                                 columnNumber: 21
                                             }, this)),
                                         hasWaiting && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -236,25 +238,25 @@ function BannerPage() {
                                             children: "+ 대기 있음"
                                         }, void 0, false, {
                                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                            lineNumber: 185,
+                                            lineNumber: 186,
                                             columnNumber: 21
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                    lineNumber: 174,
+                                    lineNumber: 175,
                                     columnNumber: 17
                                 }, this)
                             ]
                         }, dateStr, true, {
                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                            lineNumber: 162,
+                            lineNumber: 163,
                             columnNumber: 15
                         }, this);
                     })
                 }, void 0, false, {
                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                    lineNumber: 148,
+                    lineNumber: 149,
                     columnNumber: 9
                 }, this),
                 selectedDate && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -269,7 +271,7 @@ function BannerPage() {
                             ]
                         }, void 0, true, {
                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                            lineNumber: 198,
+                            lineNumber: 199,
                             columnNumber: 13
                         }, this),
                         selectedDayItems.length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -277,7 +279,7 @@ function BannerPage() {
                             children: "등록된 배너가 없습니다."
                         }, void 0, false, {
                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                            lineNumber: 203,
+                            lineNumber: 204,
                             columnNumber: 15
                         }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("ul", {
                             className: "space-y-2",
@@ -299,14 +301,14 @@ function BannerPage() {
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                                    lineNumber: 219,
+                                                    lineNumber: 220,
                                                     columnNumber: 27
                                                 }, this),
                                                 item.banner
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                            lineNumber: 217,
+                                            lineNumber: 218,
                                             columnNumber: 23
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -318,7 +320,7 @@ function BannerPage() {
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                            lineNumber: 226,
+                                            lineNumber: 227,
                                             columnNumber: 23
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -330,36 +332,36 @@ function BannerPage() {
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                            lineNumber: 230,
+                                            lineNumber: 231,
                                             columnNumber: 23
                                         }, this)
                                     ]
                                 }, item.id, true, {
                                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                                    lineNumber: 213,
+                                    lineNumber: 214,
                                     columnNumber: 21
                                 }, this);
                             })
                         }, void 0, false, {
                             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                            lineNumber: 207,
+                            lineNumber: 208,
                             columnNumber: 15
                         }, this)
                     ]
                 }, void 0, true, {
                     fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-                    lineNumber: 197,
+                    lineNumber: 198,
                     columnNumber: 11
                 }, this)
             ]
         }, void 0, true, {
             fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-            lineNumber: 108,
+            lineNumber: 109,
             columnNumber: 7
         }, this)
     }, void 0, false, {
         fileName: "[project]/banner-schedule-web/src/app/banner/[type]/page.js",
-        lineNumber: 107,
+        lineNumber: 108,
         columnNumber: 5
     }, this);
 }
