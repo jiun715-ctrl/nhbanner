@@ -62,8 +62,30 @@ function getDataFile(type) {
 function loadBannerData(type) {
   const file = getDataFile(type);
   if (!fs.existsSync(file)) return [];
-  return JSON.parse(fs.readFileSync(file, "utf8"));
+
+  let data = JSON.parse(fs.readFileSync(file, "utf8"));
+
+  // 🔥 priority 없는 기존 데이터 자동 보정
+  const needFix = data.some((item) => item.priority == null);
+
+  if (needFix) {
+    console.log("🛠 priority 자동 보정 실행:", type);
+
+    data = data
+      .sort((a, b) =>
+        (a.createdAt || "").localeCompare(b.createdAt || "")
+      )
+      .map((item, index) => ({
+        ...item,
+        priority: index + 1,
+      }));
+
+    saveBannerData(type, data);
+  }
+
+  return data;
 }
+
 
 function saveBannerData(type, data) {
   const file = getDataFile(type);
@@ -94,76 +116,105 @@ receiver.router.get("/api/banner/:type", (req, res) => {
 /* ======================================================
  * 관리자 수정 API
  * ====================================================== */
-receiver.router.post("/api/admin/update", async (req, res) => {
-  const { type, id, updatedData } = req.body;
-
-  if (!type || !id) {
-    return res.status(400).json({ error: "invalid params" });
-  }
+receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
+  const { type, id } = req.params;
+  const updatedData = req.body;
 
   const list = loadBannerData(type);
   const index = list.findIndex((item) => item.id === id);
 
   if (index === -1) {
-    return res.status(404).json({ error: "not found" });
+    return res.status(404).json({ error: "Not found" });
   }
 
-  const original = list[index];
-  list[index] = { ...original, ...updatedData, updatedAt: new Date().toISOString() };
+  const oldPriority = list[index].priority || 1;
+  const newPriority = Number(updatedData.priority) || oldPriority;
+
+  // 🔥 우선순위 재정렬 로직
+  if (newPriority !== oldPriority) {
+    list.forEach((item) => {
+      if (item.id === id) return;
+
+      if (newPriority < oldPriority) {
+        // 위로 올릴 때
+        if (
+          item.priority >= newPriority &&
+          item.priority < oldPriority
+        ) {
+          item.priority += 1;
+        }
+      } else {
+        // 아래로 내릴 때
+        if (
+          item.priority <= newPriority &&
+          item.priority > oldPriority
+        ) {
+          item.priority -= 1;
+        }
+      }
+    });
+  }
+
+  // 🔥 해당 항목 업데이트
+  list[index] = {
+    ...list[index],
+    ...updatedData,
+    priority: newPriority,
+    updatedAt: new Date().toISOString(),
+  };
 
   saveBannerData(type, list);
 
-  // 🔥 수정된 컬럼 비교
-  const changedFields = [];
-  Object.keys(updatedData).forEach((key) => {
-    if (original[key] !== updatedData[key]) {
-      changedFields.push(key);
-    }
-  });
-
-  // 🔥 작성자에게 DM 전송
+  // 🔥 작성자에게 Slack 알림 보내기
   try {
     await app.client.chat.postMessage({
-      channel: original.createdBy,
-      text: `📢 관리자에 의해 아래 항목이 수정되었습니다:\n${changedFields.join(
-        ", "
-      )}`,
+      channel: list[index].createdBy,
+      text: `📢 관리자에 의해 "${list[index].banner}" 게시물이 수정되었습니다.`,
     });
   } catch (e) {
-    console.log("DM 실패:", e.message);
+    console.log("Slack DM 실패:", e.message);
   }
 
   res.json({ success: true });
 });
+
 
 /* ======================================================
  * 관리자 삭제 API
  * ====================================================== */
-receiver.router.post("/api/admin/delete", async (req, res) => {
-  const { type, id } = req.body;
+receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
+  const { type, id } = req.params;
 
   const list = loadBannerData(type);
-  const item = list.find((x) => x.id === id);
+  const target = list.find((item) => item.id === id);
 
-  if (!item) {
-    return res.status(404).json({ error: "not found" });
+  if (!target) {
+    return res.status(404).json({ error: "Not found" });
   }
 
-  const next = list.filter((x) => x.id !== id);
-  saveBannerData(type, next);
+  const newList = list.filter((item) => item.id !== id);
 
-  // 🔥 작성자에게 DM
+  // 🔥 삭제 후 priority 재정렬
+  newList
+    .sort((a, b) => a.priority - b.priority)
+    .forEach((item, idx) => {
+      item.priority = idx + 1;
+    });
+
+  saveBannerData(type, newList);
+
   try {
     await app.client.chat.postMessage({
-      channel: item.createdBy,
-      text: `❌ 관리자에 의해 배너 "${item.banner}" 가 삭제되었습니다.`,
+      channel: target.createdBy,
+      text: `⚠️ 관리자에 의해 "${target.banner}" 게시물이 삭제되었습니다.`,
     });
   } catch (e) {
-    console.log("DM 실패:", e.message);
+    console.log("Slack DM 실패:", e.message);
   }
 
   res.json({ success: true });
 });
+
 
 /* ======================================================
  * Slack App
@@ -392,8 +443,8 @@ async function publishBannerMain(userId, type) {
       (d) => d.startDate <= yyyyMMdd && d.endDate >= yyyyMMdd
     );
 
-    const sorted = [...dayItems].sort((a, b) =>
-      (a.createdAt || "").localeCompare(b.createdAt || "")
+    const sorted = [...dayItems].sort(
+      (a, b) => (a.priority || 0) - (b.priority || 0)
     );
 
     const lines = ranks.map((rank) => {
@@ -692,20 +743,32 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     const v = view.state.values;
     const list = loadBannerData(type);
 
+    const maxPriority =
+    list.length > 0
+      ? Math.max(...list.map((i) => i.priority || 0))
+      : 0;
+
+
     list.push({
-      id: Date.now().toString(),
-      eventCode: v.event_code_block.event_code.value,
-      bannerType: v.banner_type_block.banner_type.selected_option?.value,
-      mediaType: v.media_type_block.media_type.selected_option?.value,
-      banner: v.banner_block.banner.value,
-      bannerDesc: v.banner_desc_block.banner_desc.value,
-      startDate: v.start_date_block.start_date.selected_date,
-      endDate: v.end_date_block.end_date.selected_date,
-      linkType: v.link_type_block.link_type.selected_option?.value,
-      linkUrl: v.link_url_block?.link_url?.value || "",
-      linkData: v.link_data_block?.link_data?.value || "",
-      createdBy: body.user.id,
-      createdAt: new Date().toISOString(),
+    id: Date.now().toString(),
+        priority: maxPriority + 1, // ✅ 자동 우선순위 부여
+
+        eventCode: v.event_code_block.event_code.value,
+        bannerType:
+          v.banner_type_block.banner_type.selected_option?.value || "",
+        mediaType:
+          v.media_type_block.media_type.selected_option?.value || "",
+        banner: v.banner_block.banner.value,
+        bannerDesc: v.banner_desc_block.banner_desc.value,
+        startDate: v.start_date_block.start_date.selected_date,
+        endDate: v.end_date_block.end_date.selected_date,
+        linkType:
+          v.link_type_block.link_type.selected_option?.value || "",
+        linkUrl: v.link_url_block?.link_url?.value || "",
+        linkData: v.link_data_block?.link_data?.value || "",
+
+        createdBy: body.user.id,
+        createdAt: new Date().toISOString(),
     });
 
 

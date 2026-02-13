@@ -85,41 +85,61 @@ export default function AdminPage() {
   /* ===============================
    * 수정
    * =============================== */
-  function handleEdit(item) {
-    setEditItem({ ...item });
-  }
+async function handleEdit(item) {
+  const newPriority = prompt("새 우선순위 입력", item.priority || 1);
+  if (!newPriority) return;
 
-  async function saveEdit() {
-    await fetch(`${API_BASE}/api/admin/update`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: activeType,
-        id: editItem.id,
-        updatedData: editItem,
-      }),
-    });
+  const updated = {
+    ...item,
+    priority: Number(newPriority),
+  };
 
-    location.reload();
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/update/${activeType}/${item.id}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated),
+      }
+    );
+
+    if (!res.ok) throw new Error("수정 실패");
+
+    alert("수정 완료");
+
+    window.location.reload();
+  } catch (e) {
+    alert("수정 중 오류 발생");
+    console.error(e);
   }
+}
+
 
   /* ===============================
    * 삭제
    * =============================== */
-  async function handleDelete(item) {
-    if (!confirm("정말 삭제하시겠습니까?")) return;
+ async function handleDelete(item) {
+  if (!confirm("정말 삭제하시겠습니까?")) return;
 
-    await fetch(`${API_BASE}/api/admin/delete`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: activeType,
-        id: item.id,
-      }),
-    });
+  try {
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/delete/${activeType}/${item.id}`,
+      { method: "DELETE" }
+    );
 
-    location.reload();
+    if (!res.ok) throw new Error("삭제 실패");
+
+    alert("삭제 완료");
+
+    // 화면 새로고침
+    window.location.reload();
+  } catch (e) {
+    alert("삭제 중 오류 발생");
+    console.error(e);
   }
+}
+
 
   /* ===============================
    * 엑셀 다운로드
