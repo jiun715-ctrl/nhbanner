@@ -89,9 +89,7 @@ export default function AdminPage() {
 
     return raw
       .filter((item) => safeString(item.startDate).startsWith(month))
-      .sort((a, b) =>
-        (a.priority || 0) - (b.priority || 0)
-      )
+      .sort((a, b) => (a.priority || 0) - (b.priority || 0))
       .map((item, idx) => ({
         no: idx + 1,
         ...item,
@@ -102,26 +100,25 @@ export default function AdminPage() {
      수정 시작
   =============================== */
   function handleEdit(item) {
-    if (!item.id) {
-      console.error("id 없음:", item);
+    console.log("선택된 item:", item);
+
+    const realId = item.id || item._id;
+
+    if (!realId) {
+      console.error("❌ id 없음:", item);
       alert("이 항목은 id가 없습니다. 콘솔 확인하세요.");
       return;
     }
 
-    setEditingItem(item);
+    const fixedItem = { ...item, id: realId };
 
+    setEditingItem(fixedItem);
 
     setEditForm({
       eventCode: item.eventCode || "",
-      bannerCategory: item.bannerCategory || "",
-      mediaType: item.mediaType || "",
       banner: item.banner || "",
-      bannerContent: item.bannerContent || "",
       startDate: item.startDate || "",
       endDate: item.endDate || "",
-      linkType: item.linkType || "",
-      linkUrl: item.linkUrl || "",
-      linkData: item.linkData || "",
       priority: item.priority || 1,
     });
   }
@@ -134,6 +131,9 @@ export default function AdminPage() {
       alert("ID가 없습니다.");
       return;
     }
+
+    console.log("수정 요청 ID:", editingItem.id);
+    console.log("보내는 데이터:", editForm);
 
     try {
       const res = await fetch(
@@ -176,12 +176,14 @@ export default function AdminPage() {
      삭제
   =============================== */
   async function handleDelete(item) {
-    if (!item?.id) return;
+    const realId = item.id || item._id;
+    if (!realId) return;
+
     if (!confirm("정말 삭제하시겠습니까?")) return;
 
     try {
       const res = await fetch(
-        `${API_BASE}/api/admin/delete/${activeType}/${item.id}`,
+        `${API_BASE}/api/admin/delete/${activeType}/${realId}`,
         { method: "DELETE" }
       );
 
@@ -215,15 +217,10 @@ export default function AdminPage() {
     const rows = filtered.map((item) => ({
       No: item.no,
       EventCode: item.eventCode,
-      배너구분: item.bannerCategory,
-      매체유형: item.mediaType,
       배너명: item.banner,
-      배너내용: item.bannerContent,
       노출시작: item.startDate,
       노출종료: item.endDate,
-      바로가기속성: item.linkType,
-      링크: item.linkUrl,
-      링크데이터: item.linkData,
+      우선순위: item.priority,
       CreatedAt: item.createdAt,
     }));
 
@@ -234,9 +231,7 @@ export default function AdminPage() {
 
   return (
     <main style={{ padding: 40, fontFamily: "sans-serif" }}>
-      <h1 style={{ fontSize: 26, marginBottom: 20 }}>
-        🛠 배너 관리자 화면
-      </h1>
+      <h1>🛠 배너 관리자 화면</h1>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
         {Object.entries(BANNER_TYPES).map(([type, label]) => (
@@ -256,14 +251,14 @@ export default function AdminPage() {
         ))}
       </div>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+      <div style={{ marginBottom: 20 }}>
         <input
           type="month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
         />
         <button onClick={downloadExcel}>⬇ 엑셀 다운로드</button>
-        <span>({filtered.length}건)</span>
+        <span> ({filtered.length}건)</span>
       </div>
 
       {loadError && <div style={{ color: "red" }}>❌ {loadError}</div>}
