@@ -101,23 +101,24 @@ export default function AdminPage() {
   /* ===============================
    * 수정 시작
    * =============================== */
-  function handleEdit(item) {
-    setEditingItem(item);
+function handleEdit(item) {
+  setEditingItem(item);
 
-    setEditForm({
-      eventCode: item.eventCode || item.targetEventCode || "",
-      bannerCategory: item.bannerCategory || "",
-      mediaType: item.mediaType || "",
-      banner: item.banner || "",
-      bannerContent: item.bannerContent || "",
-      startDate: item.startDate || "",
-      endDate: item.endDate || "",
-      linkType: item.linkType || "",
-      linkUrl: item.linkUrl || "",
-      linkData: item.linkData || "",
-      priority: item.priority || 1,
-    });
-  }
+  setEditForm({
+    eventCode: item.eventCode || item.targetEventCode || "",
+    bannerCategory: item.bannerCategory || "",
+    mediaType: item.mediaType || "",
+    banner: item.banner || "",
+    bannerContent: item.bannerContent || "",
+    startDate: item.startDate || "",
+    endDate: item.endDate || "",
+    linkType: item.linkType || "",
+    linkUrl: item.linkUrl || "",
+    linkData: item.linkData || "",
+    priority: item.priority || 1,
+  });
+}
+
 
   /* ===============================
    * 수정 저장
@@ -129,7 +130,10 @@ export default function AdminPage() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(editForm),
+          body: JSON.stringify({
+          ...editForm,
+          targetEventCode: editForm.eventCode,
+          })
         }
       );
 
@@ -311,35 +315,36 @@ export default function AdminPage() {
       </table>
 
       {/* 수정 모달 */}
-      {editingItem && (
+      {editingItem && editForm && (
         <div style={modalStyle}>
           <div style={modalContentStyle}>
             <h3>배너 수정</h3>
 
+            <label>Event Code</label>
             <input
-              placeholder="Event Code"
               value={editForm.eventCode}
               onChange={(e) =>
                 setEditForm({ ...editForm, eventCode: e.target.value })
               }
             />
 
+            <label>배너명</label>
             <input
-              placeholder="배너명"
               value={editForm.banner}
               onChange={(e) =>
                 setEditForm({ ...editForm, banner: e.target.value })
               }
             />
 
+            <label>배너내용</label>
             <textarea
-              placeholder="배너내용"
               value={editForm.bannerContent}
               onChange={(e) =>
                 setEditForm({ ...editForm, bannerContent: e.target.value })
               }
             />
 
+            <label>노출 시작일</label>
             <input
               type="date"
               value={editForm.startDate}
@@ -348,6 +353,7 @@ export default function AdminPage() {
               }
             />
 
+            <label>노출 종료일</label>
             <input
               type="date"
               value={editForm.endDate}
@@ -356,22 +362,46 @@ export default function AdminPage() {
               }
             />
 
+            <label>우선순위</label>
             <input
               type="number"
-              placeholder="우선순위"
               value={editForm.priority}
               onChange={(e) =>
-                setEditForm({ ...editForm, priority: e.target.value })
+                setEditForm({ ...editForm, priority: Number(e.target.value) })
               }
             />
 
-            <div style={{ marginTop: 10 }}>
-              <button onClick={handleUpdate}>저장</button>
-              <button onClick={() => setEditingItem(null)}>취소</button>
+            {/* 🔥 버튼 영역 */}
+            <div style={{ marginTop: 15, display: "flex", gap: 10 }}>
+              <button
+                onClick={handleUpdate}
+                style={{
+                  background: "#222",
+                  color: "#fff",
+                  padding: "6px 12px",
+                  border: "none",
+                  borderRadius: 4,
+                }}
+              >
+                수정완료
+              </button>
+
+              <button
+                onClick={() => setEditingItem(null)}
+                style={{
+                  background: "#ccc",
+                  padding: "6px 12px",
+                  border: "none",
+                  borderRadius: 4,
+                }}
+              >
+                취소
+              </button>
             </div>
           </div>
         </div>
       )}
+
     </main>
   );
 }
