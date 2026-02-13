@@ -237,7 +237,9 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
     for (const userId of uniqueUsers) {
       await publishBannerMain(userId, type);
+      await publishMyReservations(userId, type);  // 🔥 추가
     }
+
   } catch (e) {
     console.log("Slack 화면 갱신 실패:", e.message);
   }
