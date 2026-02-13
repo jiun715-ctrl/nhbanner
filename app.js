@@ -103,14 +103,8 @@ const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
 });
 
-receiver.router.use(
-  cors({
-    origin: [
-      "http://localhost:3001",
-      "https://nhbanner.vercel.app"
-    ],
-  })
-);
+receiver.router.use(cors());
+
 
 
 receiver.router.post("/slack/events", (req, res) => {
