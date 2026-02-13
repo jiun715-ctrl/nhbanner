@@ -124,72 +124,79 @@ function handleEdit(item) {
    * 수정 저장
    * =============================== */
   async function handleUpdate() {
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/admin/update/${activeType}/${editingItem.id}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-          ...editForm,
-          targetEventCode: editForm.eventCode,
-          })
-        }
-      );
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/admin/update/${activeType}/${editingItem.id}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(editForm),
+      }
+    );
 
-      if (!res.ok) throw new Error("수정 실패");
-
-      alert("수정 완료");
-      setEditingItem(null);
-
-      // 다시 로드
-      const refreshed = await fetch(
-        `${API_BASE}/api/banner/${activeType}`,
-        { cache: "no-store" }
-      );
-
-      const data = await refreshed.json();
-      setAllData((prev) => ({
-        ...prev,
-        [activeType]: data,
-      }));
-    } catch (e) {
-      alert("수정 중 오류 발생");
-      console.error(e);
+    if (!res.ok) {
+      const err = await res.text();
+      console.log("서버에러:", err);
+      throw new Error("수정 실패");
     }
+
+    alert("수정 완료");
+
+    setEditingItem(null);
+
+    const refreshed = await fetch(
+      `${API_BASE}/api/banner/${activeType}`,
+      { cache: "no-store" }
+    );
+
+    const data = await refreshed.json();
+
+    setAllData((prev) => ({
+      ...prev,
+      [activeType]: data,
+    }));
+  } catch (e) {
+    console.error(e);
+    alert("수정 중 오류 발생");
   }
+}
+
 
   /* ===============================
    * 삭제
    * =============================== */
   async function handleDelete(item) {
-    if (!confirm("정말 삭제하시겠습니까?")) return;
+  if (!confirm("정말 삭제하시겠습니까?")) return;
 
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/admin/delete/${activeType}/${item.id}`,
-        { method: "DELETE" }
-      );
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/admin/delete/${activeType}/${item.id}`,
+      { method: "DELETE" }
+    );
 
-      if (!res.ok) throw new Error("삭제 실패");
+    if (!res.ok) throw new Error("삭제 실패");
 
-      alert("삭제 완료");
+    alert("삭제 완료");
 
-      const refreshed = await fetch(
-        `${API_BASE}/api/banner/${activeType}`,
-        { cache: "no-store" }
-      );
+    const refreshed = await fetch(
+      `${API_BASE}/api/banner/${activeType}`,
+      { cache: "no-store" }
+    );
 
-      const data = await refreshed.json();
-      setAllData((prev) => ({
-        ...prev,
-        [activeType]: data,
-      }));
-    } catch (e) {
-      alert("삭제 중 오류 발생");
-      console.error(e);
-    }
+    const data = await refreshed.json();
+
+    setAllData((prev) => ({
+      ...prev,
+      [activeType]: data,
+    }));
+  } catch (e) {
+    console.error(e);
+    alert("삭제 중 오류 발생");
   }
+}
+
 
   /* ===============================
    * 엑셀 다운로드
@@ -372,15 +379,22 @@ function handleEdit(item) {
             />
 
             {/* 🔥 버튼 영역 */}
-            <div style={{ marginTop: 15, display: "flex", gap: 10 }}>
+            <div
+              style={{
+                marginTop: 15,
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
               <button
                 onClick={handleUpdate}
                 style={{
                   background: "#222",
                   color: "#fff",
-                  padding: "6px 12px",
+                  padding: "8px 16px",
                   border: "none",
-                  borderRadius: 4,
+                  borderRadius: 6,
+                  cursor: "pointer",
                 }}
               >
                 수정완료
@@ -389,15 +403,17 @@ function handleEdit(item) {
               <button
                 onClick={() => setEditingItem(null)}
                 style={{
-                  background: "#ccc",
-                  padding: "6px 12px",
-                  border: "none",
-                  borderRadius: 4,
+                  background: "#eee",
+                  padding: "8px 16px",
+                  border: "1px solid #ccc",
+                  borderRadius: 6,
+                  cursor: "pointer",
                 }}
               >
                 취소
               </button>
             </div>
+
           </div>
         </div>
       )}
