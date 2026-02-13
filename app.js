@@ -185,8 +185,8 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
   saveBannerData(type, list);
 
-    /* ===============================
-    Slack 알림 (예쁜 Block Kit 버전)
+  /* ===============================
+    Slack 알림 (변경된 항목만, 이전/이후 값 표시)
   =============================== */
   try {
     const LABEL_MAP = {
@@ -203,7 +203,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       eventCode: "이벤트코드",
     };
 
-    const changedBlocks = [];
+    const changedDetails = [];
 
     Object.keys(list[index]).forEach((key) => {
       if (
@@ -213,49 +213,23 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       ) {
         const label = LABEL_MAP[key] || key;
 
-        changedBlocks.push({
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text:
-              `• *${label}*\n` +
-              `\`${oldItem[key] ?? ""}\` → \`${list[index][key] ?? ""}\``,
-          },
-        });
+        changedDetails.push(
+          `• ${label}\n   ${oldItem[key] ?? "-"} → ${list[index][key] ?? "-"}`
+        );
       }
     });
 
-    if (changedBlocks.length > 0) {
+    // 🔥 변경된 항목이 있을 때만 DM 발송
+    if (changedDetails.length > 0) {
       await app.client.chat.postMessage({
         channel: oldItem.createdBy,
-        blocks: [
-          {
-            type: "header",
-            text: {
-              type: "plain_text",
-              text: "📢 배너 수정 알림",
-            },
-          },
-          { type: "divider" },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: `>*${oldItem.banner}* 게시물이 관리자에 의해 수정되었습니다.`,
-            },
-          },
-          { type: "divider" },
-          {
-            type: "section",
-            text: {
-              type: "mrkdwn",
-              text: "🔎 *변경 내역*",
-            },
-          },
-          ...changedBlocks,
-        ],
+        text:
+          `📢 관리자에 의해 *"${oldItem.banner}"* 게시물이 수정되었습니다.\n\n` +
+          `🔎 변경된 항목:\n\n` +
+          changedDetails.join("\n\n"),
       });
     }
+
   } catch (e) {
     console.log("Slack DM 실패:", e.message);
   }
