@@ -61,7 +61,7 @@ export default function BannerPage() {
    * 타입 기반 API 호출
    * =============================== */
 
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE;
+  const apiBase = "https://nhbanner-slack.onrender.com";
 
   useEffect(() => {
     fetch(`${apiBase}/api/banner/${type}`, { cache: "no-store" })

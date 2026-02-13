@@ -1,2 +1,18 @@
 [
+  {
+    "id": "1770968427703",
+    "priority": 1,
+    "eventCode": "타겟 이벤트 코드 테스트 1",
+    "bannerType": "00",
+    "mediaType": "tree",
+    "banner": "타겟 배너명 테스트 1",
+    "bannerDesc": "배너내용 테스트 1",
+    "startDate": "2026-02-09",
+    "endDate": "2026-02-10",
+    "linkType": "screen",
+    "linkUrl": "바로가기링크1",
+    "linkData": "링크데이터1",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-13T07:40:27.703Z"
+  }
 ]

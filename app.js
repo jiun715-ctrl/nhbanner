@@ -595,9 +595,13 @@ async function publishMyReservations(userId, type) {
           type: "section",
           text: {
             type: "mrkdwn",
-            text: `*${item.banner}*\n${item.startDate} ~ ${item.endDate}\n${item.department} / ${item.manager}`,
+            text:
+              `*${item.banner}*\n` +
+              `${item.startDate} ~ ${item.endDate}\n` +
+              `> ${item.bannerDesc || ""}`,
           },
         });
+
 
         blocks.push({
           type: "actions",

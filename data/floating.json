@@ -1,2 +1,18 @@
 [
+  {
+    "id": "1770969508097",
+    "priority": 1,
+    "eventCode": "타겟이벤트코드 테스트 플로팅",
+    "bannerType": "02",
+    "mediaType": "tree",
+    "banner": "배너명 테스트 플로팅",
+    "bannerDesc": "배너내용 테스트 플로팅",
+    "startDate": "2026-02-11",
+    "endDate": "2026-02-13",
+    "linkType": "popup",
+    "linkUrl": "선택링크",
+    "linkData": "선택데이터",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-13T07:58:28.097Z"
+  }
 ]
