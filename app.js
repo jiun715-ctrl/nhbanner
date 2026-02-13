@@ -147,17 +147,11 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       if (item.id === id) return;
 
       if (newPriority < oldPriority) {
-        if (
-          item.priority >= newPriority &&
-          item.priority < oldPriority
-        ) {
+        if (item.priority >= newPriority && item.priority < oldPriority) {
           item.priority += 1;
         }
       } else {
-        if (
-          item.priority <= newPriority &&
-          item.priority > oldPriority
-        ) {
+        if (item.priority <= newPriority && item.priority > oldPriority) {
           item.priority -= 1;
         }
       }
@@ -186,7 +180,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   saveBannerData(type, list);
 
   /* ===============================
-    Slack 알림 (변경된 항목만, 이전/이후 값 표시)
+    Slack 알림 (진짜 변경된 항목만)
   =============================== */
   try {
     const LABEL_MAP = {
@@ -205,21 +199,20 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
     const changedDetails = [];
 
-    Object.keys(list[index]).forEach((key) => {
-      if (
-        key !== "updatedAt" &&
-        key !== "createdAt" &&
-        oldItem[key] !== list[index][key]
-      ) {
-        const label = LABEL_MAP[key] || key;
+    Object.keys(LABEL_MAP).forEach((key) => {
+      const before = oldItem[key] ?? "";
+      const after = list[index][key] ?? "";
+
+      // 🔥 문자열로 통일해서 비교
+      if (String(before) !== String(after)) {
+        const label = LABEL_MAP[key];
 
         changedDetails.push(
-          `• ${label}\n   ${oldItem[key] ?? "-"} → ${list[index][key] ?? "-"}`
+          `• ${label}\n   ${before || "-"} → ${after || "-"}`
         );
       }
     });
 
-    // 🔥 변경된 항목이 있을 때만 DM 발송
     if (changedDetails.length > 0) {
       await app.client.chat.postMessage({
         channel: oldItem.createdBy,
@@ -229,16 +222,26 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
           changedDetails.join("\n\n"),
       });
     }
-
   } catch (e) {
     console.log("Slack DM 실패:", e.message);
   }
 
 
+  /* ===============================
+     🔥 Slack 화면 전체 유저 갱신
+  =============================== */
+  try {
+    const uniqueUsers = [...new Set(list.map(i => i.createdBy))];
+
+    for (const userId of uniqueUsers) {
+      await publishBannerMain(userId, type);
+    }
+  } catch (e) {
+    console.log("Slack 화면 갱신 실패:", e.message);
+  }
 
   res.json({ success: true });
 });
-
 
 
 /* ======================================================
@@ -274,8 +277,22 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
     console.log("Slack DM 실패:", e.message);
   }
 
+  /* ===============================
+     🔥 Slack 화면 전체 유저 갱신
+  =============================== */
+  try {
+    const uniqueUsers = [...new Set(newList.map(i => i.createdBy))];
+
+    for (const userId of uniqueUsers) {
+      await publishBannerMain(userId, type);
+    }
+  } catch (e) {
+    console.log("Slack 화면 갱신 실패:", e.message);
+  }
+
   res.json({ success: true });
 });
+
 
 
 /* ======================================================
@@ -837,11 +854,13 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     saveBannerData(type, list);
 
     // ✅ 등록 후 이미지 갱신 시도 (실패해도 앱은 계속 동작)
+    // 🔥 Slack 화면 강제 갱신
     try {
-      await regenerateCalendar(type);
+      await publishBannerMain(oldItem.createdBy, type);
     } catch (e) {
-      console.log("⚠️ 캘린더 이미지 갱신 실패:", e?.message || e);
+      console.log("Slack 화면 갱신 실패:", e.message);
     }
+
 
     await publishBannerMain(body.user.id, type);
   });

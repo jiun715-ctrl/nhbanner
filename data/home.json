@@ -95,5 +95,21 @@
     "linkData": "그냥빈칸2",
     "createdBy": "U0A569F8UTD",
     "createdAt": "2026-02-13T04:11:08.455Z"
+  },
+  {
+    "id": "1770958595869",
+    "priority": 9,
+    "eventCode": "NMSV0999",
+    "bannerType": "00",
+    "mediaType": "tree",
+    "banner": "테스트 최최초최초치최종",
+    "bannerDesc": "배너내용 없음",
+    "startDate": "2026-02-12",
+    "endDate": "2026-02-18",
+    "linkType": "screen",
+    "linkUrl": "선택사항없음",
+    "linkData": "선택안할거",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-13T04:56:35.869Z"
   }
 ]
