@@ -10,6 +10,7 @@ const BANNER_TYPES = {
   floating: "📌 플로팅배너",
   interest: "⭐ 관심그룹탭배너",
 };
+
 const modalStyle = {
   position: "fixed",
   top: 0,
@@ -26,12 +27,11 @@ const modalContentStyle = {
   background: "#fff",
   padding: 20,
   borderRadius: 8,
-  width: 400,
+  width: 420,
   display: "flex",
   flexDirection: "column",
   gap: 8,
 };
-
 
 function getCurrentMonthYYYYMM() {
   const d = new Date();
@@ -51,10 +51,8 @@ export default function AdminPage() {
     interest: [],
   });
   const [loadError, setLoadError] = useState("");
-  const [editItem, setEditItem] = useState(null);
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState(null);
-
 
   /* ===============================
    * 데이터 로드
@@ -63,17 +61,14 @@ export default function AdminPage() {
     async function run() {
       try {
         setLoadError("");
-
         const results = {};
 
         for (const type of Object.keys(BANNER_TYPES)) {
-          const res = await fetch(
-            `${API_BASE}/api/banner/${type}`,
-            { cache: "no-store" }
-          );
+          const res = await fetch(`${API_BASE}/api/banner/${type}`, {
+            cache: "no-store",
+          });
 
           if (!res.ok) throw new Error(`${type} API 실패`);
-
           results[type] = await res.json();
         }
 
@@ -93,13 +88,9 @@ export default function AdminPage() {
     const raw = allData[activeType] || [];
 
     return raw
-      .filter((item) =>
-        safeString(item.startDate).startsWith(month)
-      )
+      .filter((item) => safeString(item.startDate).startsWith(month))
       .sort((a, b) =>
-        safeString(a.startDate).localeCompare(
-          safeString(b.startDate)
-        )
+        safeString(a.startDate).localeCompare(safeString(b.startDate))
       )
       .map((item, idx) => ({
         no: idx + 1,
@@ -108,86 +99,93 @@ export default function AdminPage() {
   }, [allData, activeType, month]);
 
   /* ===============================
-   * 수정
+   * 수정 시작
    * =============================== */
-function handleEdit(item) {
-  setEditingItem(item);
+  function handleEdit(item) {
+    setEditingItem(item);
 
-  setEditForm({
-    eventCode: item.eventCode || "",
-    bannerCategory: item.bannerCategory || "",
-    mediaType: item.mediaType || "",
-    banner: item.banner || "",
-    bannerContent: item.bannerContent || "",
-    startDate: item.startDate || "",
-    endDate: item.endDate || "",
-    linkType: item.linkType || "",
-    linkUrl: item.linkUrl || "",
-    linkData: item.linkData || "",
-    priority: item.priority || 1,
-  });
-}
-
-async function handleUpdate() {
-  try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/update/${activeType}/${editingItem.id}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(editForm),
-      }
-    );
-
-    if (!res.ok) throw new Error("수정 실패");
-
-    alert("수정 완료");
-
-    setEditingItem(null);
-
-    // 데이터 다시 불러오기
-    const refreshed = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/banner/${activeType}`,
-      { cache: "no-store" }
-    );
-
-    const data = await refreshed.json();
-    setAllData((prev) => ({
-      ...prev,
-      [activeType]: data,
-    }));
-  } catch (e) {
-    alert("수정 중 오류 발생");
+    setEditForm({
+      eventCode: item.eventCode || item.targetEventCode || "",
+      bannerCategory: item.bannerCategory || "",
+      mediaType: item.mediaType || "",
+      banner: item.banner || "",
+      bannerContent: item.bannerContent || "",
+      startDate: item.startDate || "",
+      endDate: item.endDate || "",
+      linkType: item.linkType || "",
+      linkUrl: item.linkUrl || "",
+      linkData: item.linkData || "",
+      priority: item.priority || 1,
+    });
   }
-}
 
+  /* ===============================
+   * 수정 저장
+   * =============================== */
+  async function handleUpdate() {
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/update/${activeType}/${editingItem.id}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(editForm),
+        }
+      );
+
+      if (!res.ok) throw new Error("수정 실패");
+
+      alert("수정 완료");
+      setEditingItem(null);
+
+      // 다시 로드
+      const refreshed = await fetch(
+        `${API_BASE}/api/banner/${activeType}`,
+        { cache: "no-store" }
+      );
+
+      const data = await refreshed.json();
+      setAllData((prev) => ({
+        ...prev,
+        [activeType]: data,
+      }));
+    } catch (e) {
+      alert("수정 중 오류 발생");
+      console.error(e);
+    }
+  }
 
   /* ===============================
    * 삭제
    * =============================== */
- async function handleDelete(item) {
-  if (!confirm("정말 삭제하시겠습니까?")) return;
+  async function handleDelete(item) {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
 
-  try {
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/delete/${activeType}/${item.id}`,
-      { method: "DELETE" }
-    );
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/delete/${activeType}/${item.id}`,
+        { method: "DELETE" }
+      );
 
-    if (!res.ok) throw new Error("삭제 실패");
+      if (!res.ok) throw new Error("삭제 실패");
 
-    alert("삭제 완료");
+      alert("삭제 완료");
 
-    // 화면 새로고침
-    window.location.reload();
-  } catch (e) {
-    alert("삭제 중 오류 발생");
-    console.error(e);
+      const refreshed = await fetch(
+        `${API_BASE}/api/banner/${activeType}`,
+        { cache: "no-store" }
+      );
+
+      const data = await refreshed.json();
+      setAllData((prev) => ({
+        ...prev,
+        [activeType]: data,
+      }));
+    } catch (e) {
+      alert("삭제 중 오류 발생");
+      console.error(e);
+    }
   }
-}
-
 
   /* ===============================
    * 엑셀 다운로드
@@ -197,7 +195,7 @@ async function handleUpdate() {
 
     const rows = filtered.map((item) => ({
       No: item.no,
-      EventCode: item.targetEventCode,
+      EventCode: item.eventCode || item.targetEventCode,
       배너구분: item.bannerCategory,
       매체유형: item.mediaType,
       배너명: item.banner,
@@ -230,10 +228,8 @@ async function handleUpdate() {
             style={{
               padding: "8px 14px",
               cursor: "pointer",
-              background:
-                activeType === type ? "#222" : "#eee",
-              color:
-                activeType === type ? "#fff" : "#000",
+              background: activeType === type ? "#222" : "#eee",
+              color: activeType === type ? "#fff" : "#000",
               border: "none",
               borderRadius: 6,
             }}
@@ -250,27 +246,16 @@ async function handleUpdate() {
           value={month}
           onChange={(e) => setMonth(e.target.value)}
         />
-
-        <button onClick={downloadExcel}>
-          ⬇ 엑셀 다운로드
-        </button>
-
+        <button onClick={downloadExcel}>⬇ 엑셀 다운로드</button>
         <span>({filtered.length}건)</span>
       </div>
 
-      {loadError && (
-        <div style={{ color: "red" }}>❌ {loadError}</div>
-      )}
+      {loadError && <div style={{ color: "red" }}>❌ {loadError}</div>}
 
-      {/* 테이블 */}
       <table
         border="1"
         cellPadding="8"
-        style={{
-          borderCollapse: "collapse",
-          width: "100%",
-          textAlign: "center",
-        }}
+        style={{ borderCollapse: "collapse", width: "100%", textAlign: "center" }}
       >
         <thead>
           <tr>
@@ -308,7 +293,7 @@ async function handleUpdate() {
                   </button>
                 </td>
                 <td>{item.no}</td>
-                <td>{item.targetEventCode}</td>
+                <td>{item.eventCode || item.targetEventCode}</td>
                 <td>{item.bannerCategory}</td>
                 <td>{item.mediaType}</td>
                 <td>{item.banner}</td>
@@ -338,32 +323,6 @@ async function handleUpdate() {
                 setEditForm({ ...editForm, eventCode: e.target.value })
               }
             />
-
-            <select
-              value={editForm.bannerCategory}
-              onChange={(e) =>
-                setEditForm({ ...editForm, bannerCategory: e.target.value })
-              }
-            >
-              <option value="">선택하세요</option>
-              <option value="00">00. 디폴트</option>
-              <option value="01">01. 상단배너</option>
-              <option value="02">02. 서비스배너</option>
-              <option value="03">03. 플로팅배너</option>
-              <option value="04">04. 이벤트공지</option>
-              <option value="05">05. 로그아웃배너</option>
-            </select>
-
-            <select
-              value={editForm.mediaType}
-              onChange={(e) =>
-                setEditForm({ ...editForm, mediaType: e.target.value })
-              }
-            >
-              <option value="">선택하세요</option>
-              <option value="나무">나무</option>
-              <option value="N2">N2</option>
-            </select>
 
             <input
               placeholder="배너명"
@@ -397,35 +356,6 @@ async function handleUpdate() {
               }
             />
 
-            <select
-              value={editForm.linkType}
-              onChange={(e) =>
-                setEditForm({ ...editForm, linkType: e.target.value })
-              }
-            >
-              <option value="">선택하세요</option>
-              <option value="화면오픈">화면오픈</option>
-              <option value="팝업오픈">팝업오픈</option>
-              <option value="프레임팝업">프레임팝업</option>
-              <option value="URL">URL</option>
-            </select>
-
-            <input
-              placeholder="링크 URL"
-              value={editForm.linkUrl}
-              onChange={(e) =>
-                setEditForm({ ...editForm, linkUrl: e.target.value })
-              }
-            />
-
-            <input
-              placeholder="링크 데이터"
-              value={editForm.linkData}
-              onChange={(e) =>
-                setEditForm({ ...editForm, linkData: e.target.value })
-              }
-            />
-
             <input
               type="number"
               placeholder="우선순위"
@@ -442,7 +372,6 @@ async function handleUpdate() {
           </div>
         </div>
       )}
-
     </main>
   );
 }
