@@ -9,9 +9,6 @@ const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
 const puppeteer = require("puppeteer");
-const express = require("express");
-receiver.router.use(express.json());
-
 
 /* ======================================================
  * 기본 설정
@@ -101,10 +98,12 @@ function saveBannerData(type, data) {
 /* ======================================================
  * Receiver
  * ====================================================== */
+const express = require("express");
 
 const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
 });
+receiver.router.use(express.json());
 
 receiver.router.use(cors({ origin: BASE_URL }));
 

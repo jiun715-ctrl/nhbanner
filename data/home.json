@@ -9,7 +9,8 @@
     "rank": 2,
     "createdBy": "U0A569F8UTD",
     "createdAt": "2026-02-04T23:50:14.383Z",
-    "updatedAt": "2026-02-05T07:43:07.148Z"
+    "updatedAt": "2026-02-05T07:43:07.148Z",
+    "priority": 1
   },
   {
     "id": "1770250851720",
@@ -21,7 +22,8 @@
     "rank": 2,
     "createdBy": "U0A569F8UTD",
     "createdAt": "2026-02-05T00:20:51.720Z",
-    "updatedAt": "2026-02-05T04:11:39.222Z"
+    "updatedAt": "2026-02-05T04:11:39.222Z",
+    "priority": 2
   },
   {
     "id": "1770278275661",
@@ -31,7 +33,8 @@
     "startDate": "2026-02-03",
     "endDate": "2026-02-10",
     "createdBy": "U0A569F8UTD",
-    "createdAt": "2026-02-05T07:57:55.661Z"
+    "createdAt": "2026-02-05T07:57:55.661Z",
+    "priority": 3
   },
   {
     "id": "1770278307403",
@@ -41,7 +44,8 @@
     "startDate": "2026-02-04",
     "endDate": "2026-02-18",
     "createdBy": "U0A569F8UTD",
-    "createdAt": "2026-02-05T07:58:27.403Z"
+    "createdAt": "2026-02-05T07:58:27.403Z",
+    "priority": 4
   },
   {
     "id": "1770278331234",
@@ -51,7 +55,8 @@
     "startDate": "2026-02-04",
     "endDate": "2026-02-09",
     "createdBy": "U0A569F8UTD",
-    "createdAt": "2026-02-05T07:58:51.234Z"
+    "createdAt": "2026-02-05T07:58:51.234Z",
+    "priority": 5
   },
   {
     "id": "1770278953881",
@@ -61,7 +66,8 @@
     "startDate": "2026-02-05",
     "endDate": "2026-02-08",
     "createdBy": "U0870TK7V5G",
-    "createdAt": "2026-02-05T08:09:13.881Z"
+    "createdAt": "2026-02-05T08:09:13.881Z",
+    "priority": 6
   },
   {
     "id": "1770883230616",
@@ -71,6 +77,23 @@
     "startDate": "2026-02-09",
     "endDate": "2026-02-13",
     "createdBy": "U0A569F8UTD",
-    "createdAt": "2026-02-12T08:00:30.616Z"
+    "createdAt": "2026-02-12T08:00:30.616Z",
+    "priority": 7
+  },
+  {
+    "id": "1770955868455",
+    "priority": 8,
+    "eventCode": "NMSV01",
+    "bannerType": "00",
+    "mediaType": "tree",
+    "banner": "테스트배너 최종1번",
+    "bannerDesc": "즐거운명절되세요",
+    "startDate": "2026-02-12",
+    "endDate": "2026-02-14",
+    "linkType": "screen",
+    "linkUrl": "그냥빈칸ㅂ",
+    "linkData": "그냥빈칸2",
+    "createdBy": "U0A569F8UTD",
+    "createdAt": "2026-02-13T04:11:08.455Z"
   }
 ]
