@@ -10,6 +10,28 @@ const BANNER_TYPES = {
   floating: "📌 플로팅배너",
   interest: "⭐ 관심그룹탭배너",
 };
+const modalStyle = {
+  position: "fixed",
+  top: 0,
+  left: 0,
+  width: "100%",
+  height: "100%",
+  background: "rgba(0,0,0,0.5)",
+  display: "flex",
+  justifyContent: "center",
+  alignItems: "center",
+};
+
+const modalContentStyle = {
+  background: "#fff",
+  padding: 20,
+  borderRadius: 8,
+  width: 400,
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+};
+
 
 function getCurrentMonthYYYYMM() {
   const d = new Date();
@@ -30,6 +52,9 @@ export default function AdminPage() {
   });
   const [loadError, setLoadError] = useState("");
   const [editItem, setEditItem] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+
 
   /* ===============================
    * 데이터 로드
@@ -85,22 +110,34 @@ export default function AdminPage() {
   /* ===============================
    * 수정
    * =============================== */
-async function handleEdit(item) {
-  const newPriority = prompt("새 우선순위 입력", item.priority || 1);
-  if (!newPriority) return;
+function handleEdit(item) {
+  setEditingItem(item);
 
-  const updated = {
-    ...item,
-    priority: Number(newPriority),
-  };
+  setEditForm({
+    eventCode: item.eventCode || "",
+    bannerCategory: item.bannerCategory || "",
+    mediaType: item.mediaType || "",
+    banner: item.banner || "",
+    bannerContent: item.bannerContent || "",
+    startDate: item.startDate || "",
+    endDate: item.endDate || "",
+    linkType: item.linkType || "",
+    linkUrl: item.linkUrl || "",
+    linkData: item.linkData || "",
+    priority: item.priority || 1,
+  });
+}
 
+async function handleUpdate() {
   try {
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/update/${activeType}/${item.id}`,
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/admin/update/${activeType}/${editingItem.id}`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(editForm),
       }
     );
 
@@ -108,10 +145,21 @@ async function handleEdit(item) {
 
     alert("수정 완료");
 
-    window.location.reload();
+    setEditingItem(null);
+
+    // 데이터 다시 불러오기
+    const refreshed = await fetch(
+      `${process.env.NEXT_PUBLIC_API_BASE_URL}/api/banner/${activeType}`,
+      { cache: "no-store" }
+    );
+
+    const data = await refreshed.json();
+    setAllData((prev) => ({
+      ...prev,
+      [activeType]: data,
+    }));
   } catch (e) {
     alert("수정 중 오류 발생");
-    console.error(e);
   }
 }
 
@@ -278,37 +326,123 @@ async function handleEdit(item) {
       </table>
 
       {/* 수정 모달 */}
-      {editItem && (
-        <div style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.4)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        }}>
-          <div style={{
-            background: "#fff",
-            padding: 20,
-            width: 400,
-          }}>
+      {editingItem && (
+        <div style={modalStyle}>
+          <div style={modalContentStyle}>
             <h3>배너 수정</h3>
 
             <input
-              value={editItem.banner}
+              placeholder="Event Code"
+              value={editForm.eventCode}
               onChange={(e) =>
-                setEditItem({ ...editItem, banner: e.target.value })
+                setEditForm({ ...editForm, eventCode: e.target.value })
               }
-              style={{ width: "100%", marginBottom: 10 }}
             />
 
-            <button onClick={saveEdit}>저장</button>
-            <button onClick={() => setEditItem(null)}>
-              취소
-            </button>
+            <select
+              value={editForm.bannerCategory}
+              onChange={(e) =>
+                setEditForm({ ...editForm, bannerCategory: e.target.value })
+              }
+            >
+              <option value="">선택하세요</option>
+              <option value="00">00. 디폴트</option>
+              <option value="01">01. 상단배너</option>
+              <option value="02">02. 서비스배너</option>
+              <option value="03">03. 플로팅배너</option>
+              <option value="04">04. 이벤트공지</option>
+              <option value="05">05. 로그아웃배너</option>
+            </select>
+
+            <select
+              value={editForm.mediaType}
+              onChange={(e) =>
+                setEditForm({ ...editForm, mediaType: e.target.value })
+              }
+            >
+              <option value="">선택하세요</option>
+              <option value="나무">나무</option>
+              <option value="N2">N2</option>
+            </select>
+
+            <input
+              placeholder="배너명"
+              value={editForm.banner}
+              onChange={(e) =>
+                setEditForm({ ...editForm, banner: e.target.value })
+              }
+            />
+
+            <textarea
+              placeholder="배너내용"
+              value={editForm.bannerContent}
+              onChange={(e) =>
+                setEditForm({ ...editForm, bannerContent: e.target.value })
+              }
+            />
+
+            <input
+              type="date"
+              value={editForm.startDate}
+              onChange={(e) =>
+                setEditForm({ ...editForm, startDate: e.target.value })
+              }
+            />
+
+            <input
+              type="date"
+              value={editForm.endDate}
+              onChange={(e) =>
+                setEditForm({ ...editForm, endDate: e.target.value })
+              }
+            />
+
+            <select
+              value={editForm.linkType}
+              onChange={(e) =>
+                setEditForm({ ...editForm, linkType: e.target.value })
+              }
+            >
+              <option value="">선택하세요</option>
+              <option value="화면오픈">화면오픈</option>
+              <option value="팝업오픈">팝업오픈</option>
+              <option value="프레임팝업">프레임팝업</option>
+              <option value="URL">URL</option>
+            </select>
+
+            <input
+              placeholder="링크 URL"
+              value={editForm.linkUrl}
+              onChange={(e) =>
+                setEditForm({ ...editForm, linkUrl: e.target.value })
+              }
+            />
+
+            <input
+              placeholder="링크 데이터"
+              value={editForm.linkData}
+              onChange={(e) =>
+                setEditForm({ ...editForm, linkData: e.target.value })
+              }
+            />
+
+            <input
+              type="number"
+              placeholder="우선순위"
+              value={editForm.priority}
+              onChange={(e) =>
+                setEditForm({ ...editForm, priority: e.target.value })
+              }
+            />
+
+            <div style={{ marginTop: 10 }}>
+              <button onClick={handleUpdate}>저장</button>
+              <button onClick={() => setEditingItem(null)}>취소</button>
+            </div>
           </div>
         </div>
       )}
+
     </main>
   );
 }
