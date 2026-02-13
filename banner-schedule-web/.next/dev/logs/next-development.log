@@ -180,3 +180,8 @@
 [16:57:42.045] Browser ERROR   Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. undefined-2026-02-10
 [16:57:42.045] Browser ERROR   Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. undefined-2026-02-11
 [16:57:42.045] Browser ERROR   Encountered two children with the same key, `%s`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. undefined-2026-02-12
+[17:30:03.482] Server  LOG     ✓ Compiled in 104ms
+[17:30:04.040] Browser ERROR   Each child in a list should have a unique "key" prop.%s%s See https://react.dev/link/warning-keys for more information. 
+
+Check the render method of `AdminPage`. 
+[17:44:38.763] Server  LOG     ✓ Compiled in 501ms

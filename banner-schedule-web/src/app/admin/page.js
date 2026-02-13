@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
+const API_BASE = "https://nhbanner-slack.onrender.com";
+
 const BANNER_TYPES = {
   home: "🏠 홈배너",
   floating: "📌 플로팅배너",
@@ -27,9 +29,10 @@ export default function AdminPage() {
     interest: [],
   });
   const [loadError, setLoadError] = useState("");
+  const [editItem, setEditItem] = useState(null);
 
   /* ===============================
-   * 3종류 데이터 모두 로드
+   * 데이터 로드
    * =============================== */
   useEffect(() => {
     async function run() {
@@ -40,13 +43,11 @@ export default function AdminPage() {
 
         for (const type of Object.keys(BANNER_TYPES)) {
           const res = await fetch(
-            `http://localhost:3000/api/banner/${type}`,
+            `${API_BASE}/api/banner/${type}`,
             { cache: "no-store" }
           );
 
-          if (!res.ok) {
-            throw new Error(`${type} API 실패`);
-          }
+          if (!res.ok) throw new Error(`${type} API 실패`);
 
           results[type] = await res.json();
         }
@@ -70,15 +71,11 @@ export default function AdminPage() {
       .filter((item) =>
         safeString(item.startDate).startsWith(month)
       )
-      .sort((a, b) => {
-        const aStart = safeString(a.startDate);
-        const bStart = safeString(b.startDate);
-        if (aStart !== bStart) return aStart.localeCompare(bStart);
-
-        return safeString(a.createdAt).localeCompare(
-          safeString(b.createdAt)
-        );
-      })
+      .sort((a, b) =>
+        safeString(a.startDate).localeCompare(
+          safeString(b.startDate)
+        )
+      )
       .map((item, idx) => ({
         no: idx + 1,
         ...item,
@@ -86,30 +83,67 @@ export default function AdminPage() {
   }, [allData, activeType, month]);
 
   /* ===============================
-   * 엑셀 3시트 다운로드
+   * 수정
+   * =============================== */
+  function handleEdit(item) {
+    setEditItem({ ...item });
+  }
+
+  async function saveEdit() {
+    await fetch(`${API_BASE}/api/admin/update`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: activeType,
+        id: editItem.id,
+        updatedData: editItem,
+      }),
+    });
+
+    location.reload();
+  }
+
+  /* ===============================
+   * 삭제
+   * =============================== */
+  async function handleDelete(item) {
+    if (!confirm("정말 삭제하시겠습니까?")) return;
+
+    await fetch(`${API_BASE}/api/admin/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: activeType,
+        id: item.id,
+      }),
+    });
+
+    location.reload();
+  }
+
+  /* ===============================
+   * 엑셀 다운로드
    * =============================== */
   function downloadExcel() {
     const wb = XLSX.utils.book_new();
 
-    Object.keys(BANNER_TYPES).forEach((type) => {
-      const rows = (allData[type] || [])
-        .filter((item) =>
-          safeString(item.startDate).startsWith(month)
-        )
-        .map((item, idx) => ({
-          No: idx + 1,
-          department: safeString(item.department),
-          manager: safeString(item.manager),
-          banner: safeString(item.banner),
-          startDate: safeString(item.startDate),
-          endDate: safeString(item.endDate),
-          createdAt: safeString(item.createdAt),
-        }));
+    const rows = filtered.map((item) => ({
+      No: item.no,
+      EventCode: item.targetEventCode,
+      배너구분: item.bannerCategory,
+      매체유형: item.mediaType,
+      배너명: item.banner,
+      배너내용: item.bannerContent,
+      노출시작: item.startDate,
+      노출종료: item.endDate,
+      바로가기속성: item.linkType,
+      링크: item.linkUrl,
+      링크데이터: item.linkData,
+      CreatedAt: item.createdAt,
+    }));
 
-      const ws = XLSX.utils.json_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, BANNER_TYPES[type]);
-    });
-
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, BANNER_TYPES[activeType]);
     XLSX.writeFile(wb, `banner_admin_${month}.xlsx`);
   }
 
@@ -119,7 +153,7 @@ export default function AdminPage() {
         🛠 배너 관리자 화면
       </h1>
 
-      {/* 탭 버튼 */}
+      {/* 타입 탭 */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
         {Object.entries(BANNER_TYPES).map(([type, label]) => (
           <button
@@ -141,7 +175,7 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* 컨트롤 */}
+      {/* 월 필터 */}
       <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
         <input
           type="month"
@@ -149,23 +183,15 @@ export default function AdminPage() {
           onChange={(e) => setMonth(e.target.value)}
         />
 
-        <button
-          onClick={downloadExcel}
-          style={{ padding: "6px 10px" }}
-        >
-          ⬇ 3종 엑셀 다운로드
+        <button onClick={downloadExcel}>
+          ⬇ 엑셀 다운로드
         </button>
 
-        <span style={{ color: "#666" }}>
-          ({filtered.length}건)
-        </span>
+        <span>({filtered.length}건)</span>
       </div>
 
-      {/* 에러 */}
       {loadError && (
-        <div style={{ color: "red", marginBottom: 16 }}>
-          ❌ {loadError}
-        </div>
+        <div style={{ color: "red" }}>❌ {loadError}</div>
       )}
 
       {/* 테이블 */}
@@ -178,14 +204,20 @@ export default function AdminPage() {
           textAlign: "center",
         }}
       >
-        <thead style={{ background: "#f3f3f3" }}>
+        <thead>
           <tr>
+            <th>관리</th>
             <th>No</th>
-            <th>Department</th>
-            <th>Manager</th>
-            <th>Banner</th>
-            <th>StartDate</th>
-            <th>EndDate</th>
+            <th>EventCode</th>
+            <th>배너구분</th>
+            <th>매체유형</th>
+            <th>배너명</th>
+            <th>배너내용</th>
+            <th>노출시작</th>
+            <th>노출종료</th>
+            <th>바로가기속성</th>
+            <th>링크</th>
+            <th>링크데이터</th>
             <th>CreatedAt</th>
           </tr>
         </thead>
@@ -193,23 +225,70 @@ export default function AdminPage() {
         <tbody>
           {filtered.length === 0 ? (
             <tr>
-              <td colSpan="7">데이터 없음</td>
+              <td colSpan="13">데이터 없음</td>
             </tr>
           ) : (
             filtered.map((item) => (
-              <tr key={safeString(item.id) || item.no}>
+              <tr key={item.id}>
+                <td>
+                  <button onClick={() => handleEdit(item)}>수정</button>
+                  <button
+                    onClick={() => handleDelete(item)}
+                    style={{ color: "red" }}
+                  >
+                    삭제
+                  </button>
+                </td>
                 <td>{item.no}</td>
-                <td>{safeString(item.department)}</td>
-                <td>{safeString(item.manager)}</td>
-                <td>{safeString(item.banner)}</td>
-                <td>{safeString(item.startDate)}</td>
-                <td>{safeString(item.endDate)}</td>
-                <td>{safeString(item.createdAt)}</td>
+                <td>{item.targetEventCode}</td>
+                <td>{item.bannerCategory}</td>
+                <td>{item.mediaType}</td>
+                <td>{item.banner}</td>
+                <td>{item.bannerContent}</td>
+                <td>{item.startDate}</td>
+                <td>{item.endDate}</td>
+                <td>{item.linkType}</td>
+                <td>{item.linkUrl}</td>
+                <td>{item.linkData}</td>
+                <td>{item.createdAt}</td>
               </tr>
             ))
           )}
         </tbody>
       </table>
+
+      {/* 수정 모달 */}
+      {editItem && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.4)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}>
+          <div style={{
+            background: "#fff",
+            padding: 20,
+            width: 400,
+          }}>
+            <h3>배너 수정</h3>
+
+            <input
+              value={editItem.banner}
+              onChange={(e) =>
+                setEditItem({ ...editItem, banner: e.target.value })
+              }
+              style={{ width: "100%", marginBottom: 10 }}
+            />
+
+            <button onClick={saveEdit}>저장</button>
+            <button onClick={() => setEditItem(null)}>
+              취소
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

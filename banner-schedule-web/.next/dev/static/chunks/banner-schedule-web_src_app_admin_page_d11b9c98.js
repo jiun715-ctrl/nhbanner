@@ -14,6 +14,7 @@ var _s = __turbopack_context__.k.signature();
 "use client";
 ;
 ;
+const API_BASE = "https://nhbanner-slack.onrender.com";
 const BANNER_TYPES = {
     home: "🏠 홈배너",
     floating: "📌 플로팅배너",
@@ -36,8 +37,9 @@ function AdminPage() {
         interest: []
     });
     const [loadError, setLoadError] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])("");
+    const [editItem, setEditItem] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
     /* ===============================
-   * 3종류 데이터 모두 로드
+   * 데이터 로드
    * =============================== */ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useEffect"])({
         "AdminPage.useEffect": ()=>{
             async function run() {
@@ -45,12 +47,10 @@ function AdminPage() {
                     setLoadError("");
                     const results = {};
                     for (const type of Object.keys(BANNER_TYPES)){
-                        const res = await fetch(`http://localhost:3000/api/banner/${type}`, {
+                        const res = await fetch(`${API_BASE}/api/banner/${type}`, {
                             cache: "no-store"
                         });
-                        if (!res.ok) {
-                            throw new Error(`${type} API 실패`);
-                        }
+                        if (!res.ok) throw new Error(`${type} API 실패`);
                         results[type] = await res.json();
                     }
                     setAllData(results);
@@ -69,12 +69,7 @@ function AdminPage() {
             return raw.filter({
                 "AdminPage.useMemo[filtered]": (item)=>safeString(item.startDate).startsWith(month)
             }["AdminPage.useMemo[filtered]"]).sort({
-                "AdminPage.useMemo[filtered]": (a, b)=>{
-                    const aStart = safeString(a.startDate);
-                    const bStart = safeString(b.startDate);
-                    if (aStart !== bStart) return aStart.localeCompare(bStart);
-                    return safeString(a.createdAt).localeCompare(safeString(b.createdAt));
-                }
+                "AdminPage.useMemo[filtered]": (a, b)=>safeString(a.startDate).localeCompare(safeString(b.startDate))
             }["AdminPage.useMemo[filtered]"]).map({
                 "AdminPage.useMemo[filtered]": (item_0, idx)=>({
                         no: idx + 1,
@@ -88,22 +83,62 @@ function AdminPage() {
         month
     ]);
     /* ===============================
-   * 엑셀 3시트 다운로드
+   * 수정
+   * =============================== */ function handleEdit(item_1) {
+        setEditItem({
+            ...item_1
+        });
+    }
+    async function saveEdit() {
+        await fetch(`${API_BASE}/api/admin/update`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                type: activeType,
+                id: editItem.id,
+                updatedData: editItem
+            })
+        });
+        location.reload();
+    }
+    /* ===============================
+   * 삭제
+   * =============================== */ async function handleDelete(item_2) {
+        if (!confirm("정말 삭제하시겠습니까?")) return;
+        await fetch(`${API_BASE}/api/admin/delete`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                type: activeType,
+                id: item_2.id
+            })
+        });
+        location.reload();
+    }
+    /* ===============================
+   * 엑셀 다운로드
    * =============================== */ function downloadExcel() {
         const wb = __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$xlsx$2f$xlsx$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["utils"].book_new();
-        Object.keys(BANNER_TYPES).forEach((type_0)=>{
-            const rows = (allData[type_0] || []).filter((item_1)=>safeString(item_1.startDate).startsWith(month)).map((item_2, idx_0)=>({
-                    No: idx_0 + 1,
-                    department: safeString(item_2.department),
-                    manager: safeString(item_2.manager),
-                    banner: safeString(item_2.banner),
-                    startDate: safeString(item_2.startDate),
-                    endDate: safeString(item_2.endDate),
-                    createdAt: safeString(item_2.createdAt)
-                }));
-            const ws = __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$xlsx$2f$xlsx$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["utils"].json_to_sheet(rows);
-            __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$xlsx$2f$xlsx$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["utils"].book_append_sheet(wb, ws, BANNER_TYPES[type_0]);
-        });
+        const rows = filtered.map((item_3)=>({
+                No: item_3.no,
+                EventCode: item_3.targetEventCode,
+                배너구분: item_3.bannerCategory,
+                매체유형: item_3.mediaType,
+                배너명: item_3.banner,
+                배너내용: item_3.bannerContent,
+                노출시작: item_3.startDate,
+                노출종료: item_3.endDate,
+                바로가기속성: item_3.linkType,
+                링크: item_3.linkUrl,
+                링크데이터: item_3.linkData,
+                CreatedAt: item_3.createdAt
+            }));
+        const ws = __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$xlsx$2f$xlsx$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["utils"].json_to_sheet(rows);
+        __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$xlsx$2f$xlsx$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["utils"].book_append_sheet(wb, ws, BANNER_TYPES[activeType]);
         __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$xlsx$2f$xlsx$2e$mjs__$5b$app$2d$client$5d$__$28$ecmascript$29$__["writeFile"](wb, `banner_admin_${month}.xlsx`);
     }
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -120,7 +155,7 @@ function AdminPage() {
                 children: "🛠 배너 관리자 화면"
             }, void 0, false, {
                 fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                lineNumber: 92,
+                lineNumber: 131,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -129,25 +164,25 @@ function AdminPage() {
                     gap: 10,
                     marginBottom: 20
                 },
-                children: Object.entries(BANNER_TYPES).map(([type_1, label])=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
-                        onClick: ()=>setActiveType(type_1),
+                children: Object.entries(BANNER_TYPES).map(([type_0, label])=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                        onClick: ()=>setActiveType(type_0),
                         style: {
                             padding: "8px 14px",
                             cursor: "pointer",
-                            background: activeType === type_1 ? "#222" : "#eee",
-                            color: activeType === type_1 ? "#fff" : "#000",
+                            background: activeType === type_0 ? "#222" : "#eee",
+                            color: activeType === type_0 ? "#fff" : "#000",
                             border: "none",
                             borderRadius: 6
                         },
                         children: label
-                    }, type_1, false, {
+                    }, type_0, false, {
                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                        lineNumber: 105,
+                        lineNumber: 144,
                         columnNumber: 64
                     }, this))
             }, void 0, false, {
                 fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                lineNumber: 100,
+                lineNumber: 139,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -163,24 +198,18 @@ function AdminPage() {
                         onChange: (e_0)=>setMonth(e_0.target.value)
                     }, void 0, false, {
                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                        lineNumber: 123,
+                        lineNumber: 162,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                         onClick: downloadExcel,
-                        style: {
-                            padding: "6px 10px"
-                        },
-                        children: "⬇ 3종 엑셀 다운로드"
+                        children: "⬇ 엑셀 다운로드"
                     }, void 0, false, {
                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                        lineNumber: 125,
+                        lineNumber: 164,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
-                        style: {
-                            color: "#666"
-                        },
                         children: [
                             "(",
                             filtered.length,
@@ -188,19 +217,18 @@ function AdminPage() {
                         ]
                     }, void 0, true, {
                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                        lineNumber: 131,
+                        lineNumber: 168,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                lineNumber: 118,
+                lineNumber: 157,
                 columnNumber: 7
             }, this),
             loadError && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                 style: {
-                    color: "red",
-                    marginBottom: 16
+                    color: "red"
                 },
                 children: [
                     "❌ ",
@@ -208,7 +236,7 @@ function AdminPage() {
                 ]
             }, void 0, true, {
                 fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                lineNumber: 139,
+                lineNumber: 171,
                 columnNumber: 21
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("table", {
@@ -221,161 +249,327 @@ function AdminPage() {
                 },
                 children: [
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("thead", {
-                        style: {
-                            background: "#f3f3f3"
-                        },
                         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
                             children: [
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                    children: "관리"
+                                }, void 0, false, {
+                                    fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                    lineNumber: 183,
+                                    columnNumber: 13
+                                }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
                                     children: "No"
                                 }, void 0, false, {
                                     fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                    lineNumber: 156,
+                                    lineNumber: 184,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
-                                    children: "Department"
+                                    children: "EventCode"
                                 }, void 0, false, {
                                     fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                    lineNumber: 157,
+                                    lineNumber: 185,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
-                                    children: "Manager"
+                                    children: "배너구분"
                                 }, void 0, false, {
                                     fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                    lineNumber: 158,
+                                    lineNumber: 186,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
-                                    children: "Banner"
+                                    children: "매체유형"
                                 }, void 0, false, {
                                     fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                    lineNumber: 159,
+                                    lineNumber: 187,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
-                                    children: "StartDate"
+                                    children: "배너명"
                                 }, void 0, false, {
                                     fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                    lineNumber: 160,
+                                    lineNumber: 188,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
-                                    children: "EndDate"
+                                    children: "배너내용"
                                 }, void 0, false, {
                                     fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                    lineNumber: 161,
+                                    lineNumber: 189,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                    children: "노출시작"
+                                }, void 0, false, {
+                                    fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                    lineNumber: 190,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                    children: "노출종료"
+                                }, void 0, false, {
+                                    fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                    lineNumber: 191,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                    children: "바로가기속성"
+                                }, void 0, false, {
+                                    fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                    lineNumber: 192,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                    children: "링크"
+                                }, void 0, false, {
+                                    fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                    lineNumber: 193,
+                                    columnNumber: 13
+                                }, this),
+                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
+                                    children: "링크데이터"
+                                }, void 0, false, {
+                                    fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                    lineNumber: 194,
                                     columnNumber: 13
                                 }, this),
                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
                                     children: "CreatedAt"
                                 }, void 0, false, {
                                     fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                    lineNumber: 162,
+                                    lineNumber: 195,
                                     columnNumber: 13
                                 }, this)
                             ]
                         }, void 0, true, {
                             fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                            lineNumber: 155,
+                            lineNumber: 182,
                             columnNumber: 11
                         }, this)
                     }, void 0, false, {
                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                        lineNumber: 152,
+                        lineNumber: 181,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("tbody", {
                         children: filtered.length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
                             children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
-                                colSpan: "7",
+                                colSpan: "13",
                                 children: "데이터 없음"
                             }, void 0, false, {
                                 fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                lineNumber: 168,
+                                lineNumber: 201,
                                 columnNumber: 15
                             }, this)
                         }, void 0, false, {
                             fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                            lineNumber: 167,
+                            lineNumber: 200,
                             columnNumber: 36
-                        }, this) : filtered.map((item_3)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
+                        }, this) : filtered.map((item_4)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
                                 children: [
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
-                                        children: item_3.no
-                                    }, void 0, false, {
+                                        children: [
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                onClick: ()=>handleEdit(item_4),
+                                                children: "수정"
+                                            }, void 0, false, {
+                                                fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                                lineNumber: 204,
+                                                columnNumber: 19
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                                onClick: ()=>handleDelete(item_4),
+                                                style: {
+                                                    color: "red"
+                                                },
+                                                children: "삭제"
+                                            }, void 0, false, {
+                                                fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                                lineNumber: 205,
+                                                columnNumber: 19
+                                            }, this)
+                                        ]
+                                    }, void 0, true, {
                                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                        lineNumber: 170,
+                                        lineNumber: 203,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
-                                        children: safeString(item_3.department)
+                                        children: item_4.no
                                     }, void 0, false, {
                                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                        lineNumber: 171,
+                                        lineNumber: 211,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
-                                        children: safeString(item_3.manager)
+                                        children: item_4.targetEventCode
                                     }, void 0, false, {
                                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                        lineNumber: 172,
+                                        lineNumber: 212,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
-                                        children: safeString(item_3.banner)
+                                        children: item_4.bannerCategory
                                     }, void 0, false, {
                                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                        lineNumber: 173,
+                                        lineNumber: 213,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
-                                        children: safeString(item_3.startDate)
+                                        children: item_4.mediaType
                                     }, void 0, false, {
                                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                        lineNumber: 174,
+                                        lineNumber: 214,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
-                                        children: safeString(item_3.endDate)
+                                        children: item_4.banner
                                     }, void 0, false, {
                                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                        lineNumber: 175,
+                                        lineNumber: 215,
                                         columnNumber: 17
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
-                                        children: safeString(item_3.createdAt)
+                                        children: item_4.bannerContent
                                     }, void 0, false, {
                                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                        lineNumber: 176,
+                                        lineNumber: 216,
+                                        columnNumber: 17
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                        children: item_4.startDate
+                                    }, void 0, false, {
+                                        fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                        lineNumber: 217,
+                                        columnNumber: 17
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                        children: item_4.endDate
+                                    }, void 0, false, {
+                                        fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                        lineNumber: 218,
+                                        columnNumber: 17
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                        children: item_4.linkType
+                                    }, void 0, false, {
+                                        fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                        lineNumber: 219,
+                                        columnNumber: 17
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                        children: item_4.linkUrl
+                                    }, void 0, false, {
+                                        fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                        lineNumber: 220,
+                                        columnNumber: 17
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                        children: item_4.linkData
+                                    }, void 0, false, {
+                                        fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                        lineNumber: 221,
+                                        columnNumber: 17
+                                    }, this),
+                                    /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
+                                        children: item_4.createdAt
+                                    }, void 0, false, {
+                                        fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                                        lineNumber: 222,
                                         columnNumber: 17
                                     }, this)
                                 ]
-                            }, safeString(item_3.id) || item_3.no, true, {
+                            }, item_4.id, true, {
                                 fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                                lineNumber: 169,
+                                lineNumber: 202,
                                 columnNumber: 44
                             }, this))
                     }, void 0, false, {
                         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                        lineNumber: 166,
+                        lineNumber: 199,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-                lineNumber: 147,
+                lineNumber: 176,
                 columnNumber: 7
+            }, this),
+            editItem && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                style: {
+                    position: "fixed",
+                    inset: 0,
+                    background: "rgba(0,0,0,0.4)",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center"
+                },
+                children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
+                    style: {
+                        background: "#fff",
+                        padding: 20,
+                        width: 400
+                    },
+                    children: [
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
+                            children: "배너 수정"
+                        }, void 0, false, {
+                            fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                            lineNumber: 241,
+                            columnNumber: 13
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
+                            value: editItem.banner,
+                            onChange: (e_1)=>setEditItem({
+                                    ...editItem,
+                                    banner: e_1.target.value
+                                }),
+                            style: {
+                                width: "100%",
+                                marginBottom: 10
+                            }
+                        }, void 0, false, {
+                            fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                            lineNumber: 243,
+                            columnNumber: 13
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                            onClick: saveEdit,
+                            children: "저장"
+                        }, void 0, false, {
+                            fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                            lineNumber: 251,
+                            columnNumber: 13
+                        }, this),
+                        /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$banner$2d$schedule$2d$web$2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                            onClick: ()=>setEditItem(null),
+                            children: "취소"
+                        }, void 0, false, {
+                            fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                            lineNumber: 252,
+                            columnNumber: 13
+                        }, this)
+                    ]
+                }, void 0, true, {
+                    fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                    lineNumber: 236,
+                    columnNumber: 11
+                }, this)
+            }, void 0, false, {
+                fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
+                lineNumber: 228,
+                columnNumber: 20
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/banner-schedule-web/src/app/admin/page.js",
-        lineNumber: 88,
+        lineNumber: 127,
         columnNumber: 10
     }, this);
 }
-_s(AdminPage, "8Fr6idW879VrCJE9ODzAJEadPNg=");
+_s(AdminPage, "rETabWjmy0BUOEfQdFkTU41KNNM=");
 _c = AdminPage;
 var _c;
 __turbopack_context__.k.register(_c, "AdminPage");

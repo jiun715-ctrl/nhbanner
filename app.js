@@ -92,6 +92,80 @@ receiver.router.get("/api/banner/:type", (req, res) => {
 });
 
 /* ======================================================
+ * 관리자 수정 API
+ * ====================================================== */
+receiver.router.post("/api/admin/update", async (req, res) => {
+  const { type, id, updatedData } = req.body;
+
+  if (!type || !id) {
+    return res.status(400).json({ error: "invalid params" });
+  }
+
+  const list = loadBannerData(type);
+  const index = list.findIndex((item) => item.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: "not found" });
+  }
+
+  const original = list[index];
+  list[index] = { ...original, ...updatedData, updatedAt: new Date().toISOString() };
+
+  saveBannerData(type, list);
+
+  // 🔥 수정된 컬럼 비교
+  const changedFields = [];
+  Object.keys(updatedData).forEach((key) => {
+    if (original[key] !== updatedData[key]) {
+      changedFields.push(key);
+    }
+  });
+
+  // 🔥 작성자에게 DM 전송
+  try {
+    await app.client.chat.postMessage({
+      channel: original.createdBy,
+      text: `📢 관리자에 의해 아래 항목이 수정되었습니다:\n${changedFields.join(
+        ", "
+      )}`,
+    });
+  } catch (e) {
+    console.log("DM 실패:", e.message);
+  }
+
+  res.json({ success: true });
+});
+
+/* ======================================================
+ * 관리자 삭제 API
+ * ====================================================== */
+receiver.router.post("/api/admin/delete", async (req, res) => {
+  const { type, id } = req.body;
+
+  const list = loadBannerData(type);
+  const item = list.find((x) => x.id === id);
+
+  if (!item) {
+    return res.status(404).json({ error: "not found" });
+  }
+
+  const next = list.filter((x) => x.id !== id);
+  saveBannerData(type, next);
+
+  // 🔥 작성자에게 DM
+  try {
+    await app.client.chat.postMessage({
+      channel: item.createdBy,
+      text: `❌ 관리자에 의해 배너 "${item.banner}" 가 삭제되었습니다.`,
+    });
+  } catch (e) {
+    console.log("DM 실패:", e.message);
+  }
+
+  res.json({ success: true });
+});
+
+/* ======================================================
  * Slack App
  * ====================================================== */
 
@@ -556,7 +630,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
           {
             type: "input",
             block_id: "end_date_block",
-            label: { type: "plain_text", text: "노출종료일자" },
+            label: { type: "plain_text", text: "노출종료 희망일자" },
             element: {
               type: "datepicker",
               action_id: "end_date",
@@ -589,7 +663,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             type: "input",
             block_id: "link_url_block",
             optional: true,
-            label: { type: "plain_text", text: "바로가기링크(선택)" },
+            label: { type: "plain_text", text: "바로가기링크(선택사항)" },
             element: {
               type: "plain_text_input",
               action_id: "link_url",
@@ -601,7 +675,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             type: "input",
             block_id: "link_data_block",
             optional: true,
-            label: { type: "plain_text", text: "바로가기링크데이터(선택)" },
+            label: { type: "plain_text", text: "바로가기링크데이터(선택사항)" },
             element: {
               type: "plain_text_input",
               action_id: "link_data",
@@ -647,6 +721,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     await publishBannerMain(body.user.id, type);
   });
 });
+
 
 /* ======================================================
  * 서버 실행

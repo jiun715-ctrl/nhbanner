@@ -395,6 +395,10 @@
     visibility: visible;
   }
 
+  .fixed {
+    position: fixed;
+  }
+
   .mx-auto {
     margin-inline: auto;
   }
