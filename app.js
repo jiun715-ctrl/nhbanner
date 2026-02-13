@@ -185,11 +185,25 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
   saveBannerData(type, list);
 
-  /* ===============================
-     Slack 알림 (변경된 컬럼 표시)
+    /* ===============================
+    Slack 알림 (예쁜 Block Kit 버전)
   =============================== */
   try {
-    const changedFields = [];
+    const LABEL_MAP = {
+      priority: "우선순위",
+      startDate: "노출시작일",
+      endDate: "노출종료일",
+      banner: "배너명",
+      bannerContent: "배너내용",
+      bannerCategory: "배너구분",
+      mediaType: "매체유형",
+      linkType: "바로가기속성",
+      linkUrl: "링크",
+      linkData: "링크데이터",
+      eventCode: "이벤트코드",
+    };
+
+    const changedBlocks = [];
 
     Object.keys(list[index]).forEach((key) => {
       if (
@@ -197,19 +211,56 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
         key !== "createdAt" &&
         oldItem[key] !== list[index][key]
       ) {
-        changedFields.push(key);
+        const label = LABEL_MAP[key] || key;
+
+        changedBlocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text:
+              `• *${label}*\n` +
+              `\`${oldItem[key] ?? ""}\` → \`${list[index][key] ?? ""}\``,
+          },
+        });
       }
     });
 
-    await app.client.chat.postMessage({
-      channel: oldItem.createdBy,
-      text: `📢 관리자에 의해 "${oldItem.banner}" 게시물이 수정되었습니다.\n\n수정된 항목:\n${changedFields.join(
-        ", "
-      )}`,
-    });
+    if (changedBlocks.length > 0) {
+      await app.client.chat.postMessage({
+        channel: oldItem.createdBy,
+        blocks: [
+          {
+            type: "header",
+            text: {
+              type: "plain_text",
+              text: "📢 배너 수정 알림",
+            },
+          },
+          { type: "divider" },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `>*${oldItem.banner}* 게시물이 관리자에 의해 수정되었습니다.`,
+            },
+          },
+          { type: "divider" },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: "🔎 *변경 내역*",
+            },
+          },
+          ...changedBlocks,
+        ],
+      });
+    }
   } catch (e) {
     console.log("Slack DM 실패:", e.message);
   }
+
+
 
   res.json({ success: true });
 });
