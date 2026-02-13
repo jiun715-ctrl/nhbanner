@@ -334,95 +334,6 @@ function getThisWeekDates() {
   });
 }
 
-/* ======================================================
- * 이미지 생성 + 캐시
- * ====================================================== */
-
-async function generateCalendarImage(type) {
-  const browser = await puppeteer.launch({ headless: "new" });
-  const page = await browser.newPage();
-
-  const targetUrl = `${BASE_URL}/banner/${type}`;
-  console.log("📸 캡처 URL:", targetUrl);
-
-  await page.goto(targetUrl, { waitUntil: "networkidle0" });
-
-  // 특정 요소가 로드됐는지 기다리기 (예: 캘린더 이미지의 셀렉터)
-  // 예를 들어, 캘린더 이미지에 id가 'calendar-image'라고 가정
-  // await page.waitForSelector('#calendar-image', { timeout: 5000 });
-
-  const screenshot = await page.screenshot({ fullPage: true });
-  await browser.close();
-
-  return screenshot;
-}
-
-async function regenerateCalendar(type) {
-  const imageBuffer = await generateCalendarImage(type);
-
-  const uploadResult = await app.client.files.uploadV2({
-    file: imageBuffer,
-    filename: `${type}_calendar.png`,
-  });
-
-  const uploadedFile = uploadResult?.files?.[0];
-  if (!uploadedFile?.id) {
-    console.log("❌ 파일 업로드 실패");
-    return "";
-  }
-
-  try {
-    await app.client.files.sharedPublicURL({
-      file: uploadedFile.id,
-    });
-  } catch (e) {
-    console.log("⚠️ sharedPublicURL 실패 (권한 문제 가능):", e?.data?.error || e?.message);
-  }
-
-  // 🔥 sharedPublicURL 반영 딜레이 방어 (최대 3회 재시도)
-  let fileInfo;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const info = await app.client.files.info({
-        file: uploadedFile.id,
-      });
-      fileInfo = info.file;
-
-      if (fileInfo.public_url_shared) break;
-
-      console.log(`⏳ public_url_shared 대기중... (${i + 1}/3)`);
-      await new Promise((res) => setTimeout(res, 1000));
-    } catch (e) {
-      console.log("⚠️ files.info 실패:", e?.data?.error || e?.message);
-      return "";
-    }
-  }
-
-  if (!fileInfo?.public_url_shared) {
-    console.log("❌ public_url_shared 끝까지 없음 → 워크스페이스 public 공유 제한 가능성");
-    return "";
-  }
-
-// 🔥 실제 이미지 접근 URL 생성 (CDN 썸네일 사용)
-  let publicUrl = fileInfo.thumb_1024 
-    || fileInfo.thumb_720 
-    || fileInfo.thumb_480;
-
-  if (!publicUrl) {
-    console.log("❌ 썸네일 URL 없음");
-    return "";
-  }
-
-  console.log("🖼 생성된 이미지 URL:", publicUrl);
-
-  const cache = loadCache();
-  cache[type] = publicUrl;
-  saveCache(cache);
-
-  return publicUrl;
-
-}
-
 
 /* ======================================================
  * 홈 화면 (3개 버튼)
@@ -631,11 +542,123 @@ Object.keys(BANNER_TYPES).forEach((type) => {
 });
 
 // ✅ 내 예약 보기
-app.action("my_reservations", async ({ ack, body }) => {
+app.action("edit_my_reservation", async ({ ack, body, client }) => {
   await ack();
-  const type = body.actions?.[0]?.value;
-  if (!type) return;
-  await publishMyReservations(body.user.id, type);
+
+  const id = body.actions?.[0]?.value;
+  if (!id) return;
+
+  let type = null;
+  let item = null;
+
+  Object.keys(BANNER_TYPES).forEach((t) => {
+    const list = loadBannerData(t);
+    const found = list.find((i) => i.id === id);
+    if (found) {
+      type = t;
+      item = found;
+    }
+  });
+
+  if (!item) return;
+
+  await client.views.open({
+    trigger_id: body.trigger_id,
+    view: {
+      type: "modal",
+      callback_id: `edit_modal_${type}`,
+      title: { type: "plain_text", text: `${BANNER_TYPES[type]} 일정 수정` },
+      submit: { type: "plain_text", text: "수정완료" },
+      close: { type: "plain_text", text: "취소" },
+      private_metadata: JSON.stringify({ id, type }),
+      blocks: [
+
+        {
+          type: "input",
+          block_id: "event_code_block",
+          label: { type: "plain_text", text: "타겟 이벤트코드" },
+          element: {
+            type: "plain_text_input",
+            action_id: "event_code",
+            initial_value: item.eventCode || "",
+          },
+        },
+
+        {
+          type: "input",
+          block_id: "banner_block",
+          label: { type: "plain_text", text: "배너명" },
+          element: {
+            type: "plain_text_input",
+            action_id: "banner",
+            initial_value: item.banner || "",
+          },
+        },
+
+        {
+          type: "input",
+          block_id: "banner_desc_block",
+          label: { type: "plain_text", text: "배너내용" },
+          element: {
+            type: "plain_text_input",
+            action_id: "banner_desc",
+            multiline: true,
+            initial_value: item.bannerDesc || "",
+          },
+        },
+
+        {
+          type: "input",
+          block_id: "start_date_block",
+          label: { type: "plain_text", text: "노출시작 희망일자" },
+          element: {
+            type: "datepicker",
+            action_id: "start_date",
+            initial_date: item.startDate,
+          },
+        },
+
+        {
+          type: "input",
+          block_id: "end_date_block",
+          label: { type: "plain_text", text: "노출종료 희망일자" },
+          element: {
+            type: "datepicker",
+            action_id: "end_date",
+            initial_date: item.endDate,
+          },
+        },
+      ],
+    },
+  });
+});
+
+
+
+app.action("delete_reservation", async ({ ack, body }) => {
+  await ack();
+
+  const id = body.actions?.[0]?.value;
+  const userId = body.user.id;
+
+  if (!id) return;
+
+  // 어떤 타입에서 눌렀는지 알아야 함
+  const type = body.view?.blocks
+    ?.find(b => b.type === "header")
+    ?.text?.text
+    ?.includes("홈배너")
+      ? "home"
+      : body.view?.blocks?.[0]?.text?.text?.includes("플로팅")
+      ? "floating"
+      : "interest";
+
+  const list = loadBannerData(type);
+  const newList = list.filter(item => item.id !== id);
+
+  saveBannerData(type, newList);
+
+  await publishMyReservations(userId, type);
 });
 
 // ✅ 내예약 -> 돌아가기
@@ -869,6 +892,33 @@ Object.keys(BANNER_TYPES).forEach((type) => {
 
     await publishBannerMain(body.user.id, type);
   });
+});
+
+  app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
+  await ack();
+
+  const { id, type } = JSON.parse(view.private_metadata);
+  const v = view.state.values;
+
+  const list = loadBannerData(type);
+  const index = list.findIndex((i) => i.id === id);
+  if (index === -1) return;
+
+  list[index] = {
+    ...list[index],
+    eventCode: v.event_code_block.event_code.value,
+    banner: v.banner_block.banner.value,
+    bannerDesc: v.banner_desc_block.banner_desc.value,
+    startDate: v.start_date_block.start_date.selected_date,
+    endDate: v.end_date_block.end_date.selected_date,
+    priority: Number(v.priority_block.priority.value),
+    updatedAt: new Date().toISOString(),
+  };
+
+  saveBannerData(type, list);
+
+  // 🔥 Slack 화면 즉시 반영
+  await publishBannerMain(body.user.id, type);
 });
 
 
