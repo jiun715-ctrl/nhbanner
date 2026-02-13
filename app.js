@@ -268,29 +268,34 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
 
   saveBannerData(type, newList);
 
-  try {
-    await app.client.chat.postMessage({
-      channel: target.createdBy,
-      text: `⚠️ 관리자에 의해 "${target.banner}" 게시물이 삭제되었습니다.`,
-    });
-  } catch (e) {
-    console.log("Slack DM 실패:", e.message);
-  }
-
-  /* ===============================
-     🔥 Slack 화면 전체 유저 갱신
-  =============================== */
-  try {
-    const uniqueUsers = [...new Set(newList.map(i => i.createdBy))];
-
-    for (const userId of uniqueUsers) {
-      await publishBannerMain(userId, type);
+    /* ===============================
+      Slack DM
+    =============================== */
+    try {
+      await app.client.chat.postMessage({
+        channel: target.createdBy,
+        text: `⚠️ 관리자에 의해 *"${target.banner}"* 게시물이 삭제되었습니다.`,
+      });
+    } catch (e) {
+      console.log("Slack DM 실패:", e.message);
     }
-  } catch (e) {
-    console.log("Slack 화면 갱신 실패:", e.message);
-  }
 
-  res.json({ success: true });
+    /* ===============================
+      🔥 Slack 화면 강제 갱신
+    =============================== */
+    try {
+      // 홈 탭 갱신
+      await publishBannerMain(target.createdBy, type);
+
+      // 내 예약 보기 갱신
+      await publishMyReservations(target.createdBy, type);
+
+    } catch (e) {
+      console.log("Slack 화면 갱신 실패:", e.message);
+    }
+
+    res.json({ success: true });
+
 });
 
 
