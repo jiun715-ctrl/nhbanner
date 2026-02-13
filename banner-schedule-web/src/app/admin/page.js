@@ -102,13 +102,14 @@ export default function AdminPage() {
      수정 시작
   =============================== */
   function handleEdit(item) {
-    if (!item?.id) {
-      alert("ID가 없는 데이터입니다.");
-      console.log("문제 데이터:", item);
+    if (!item.id) {
+      console.error("id 없음:", item);
+      alert("이 항목은 id가 없습니다. 콘솔 확인하세요.");
       return;
     }
 
     setEditingItem(item);
+
 
     setEditForm({
       eventCode: item.eventCode || "",
@@ -281,7 +282,7 @@ export default function AdminPage() {
         </thead>
         <tbody>
           {filtered.map((item) => (
-            <tr key={item.id}>
+            <tr key={item.id || item._id}>
               <td>
                 <button onClick={() => handleEdit(item)}>수정</button>
                 <button
