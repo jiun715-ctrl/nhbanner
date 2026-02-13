@@ -8,7 +8,10 @@ const { App, ExpressReceiver } = require("@slack/bolt");
 const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
+const puppeteer = require("puppeteer");
 const express = require("express");
+receiver.router.use(express.json());
+
 
 /* ======================================================
  * 기본 설정
@@ -72,7 +75,9 @@ function loadBannerData(type) {
     console.log("🛠 priority 자동 보정 실행:", type);
 
     data = data
-      .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))
+      .sort((a, b) =>
+        (a.createdAt || "").localeCompare(b.createdAt || "")
+      )
       .map((item, index) => ({
         ...item,
         priority: index + 1,
@@ -83,6 +88,7 @@ function loadBannerData(type) {
 
   return data;
 }
+
 
 function saveBannerData(type, data) {
   const file = getDataFile(type);
@@ -97,9 +103,15 @@ const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
 });
 
-// ✅ (수정) receiver 만든 다음에 미들웨어 장착
-receiver.router.use(cors({ origin: BASE_URL }));
-receiver.router.use(express.json()); // ✅ 관리자 API body 파싱 필수
+receiver.router.use(
+  cors({
+    origin: [
+      "http://localhost:3001",
+      "https://nhbanner.vercel.app"
+    ],
+  })
+);
+
 
 receiver.router.post("/slack/events", (req, res) => {
   if (req.body.type === "url_verification") {
@@ -110,16 +122,6 @@ receiver.router.post("/slack/events", (req, res) => {
 
 receiver.router.get("/api/banner/:type", (req, res) => {
   res.json(loadBannerData(req.params.type));
-});
-
-/* ======================================================
- * Slack App
- * ====================================================== */
-
-// ✅ (수정) 관리자 API에서 app.client를 쓰므로, 관리자 API보다 먼저 생성해야 함
-const app = new App({
-  token: process.env.SLACK_BOT_TOKEN,
-  receiver,
 });
 
 /* ======================================================
@@ -138,26 +140,30 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
   const oldItem = list[index];
   const oldPriority = oldItem.priority || 1;
-
-  // priority는 숫자로 강제
   const newPriority =
-    updatedData.priority !== undefined && updatedData.priority !== null
+    updatedData.priority !== undefined
       ? Number(updatedData.priority)
       : oldPriority;
 
   /* ===============================
      우선순위 재정렬
   =============================== */
-  if (Number.isFinite(newPriority) && newPriority !== oldPriority) {
+  if (newPriority !== oldPriority) {
     list.forEach((item) => {
       if (item.id === id) return;
 
       if (newPriority < oldPriority) {
-        if (item.priority >= newPriority && item.priority < oldPriority) {
+        if (
+          item.priority >= newPriority &&
+          item.priority < oldPriority
+        ) {
           item.priority += 1;
         }
       } else {
-        if (item.priority <= newPriority && item.priority > oldPriority) {
+        if (
+          item.priority <= newPriority &&
+          item.priority > oldPriority
+        ) {
           item.priority -= 1;
         }
       }
@@ -166,7 +172,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
   /* ===============================
      전체 필드 업데이트
-     - createdAt은 유지
   =============================== */
   list[index] = {
     ...oldItem,
@@ -180,7 +185,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     linkType: updatedData.linkType,
     linkUrl: updatedData.linkUrl || "",
     linkData: updatedData.linkData || "",
-    priority: Number.isFinite(newPriority) ? newPriority : oldPriority,
+    priority: newPriority,
     updatedAt: new Date().toISOString(),
   };
 
@@ -214,6 +219,8 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
   res.json({ success: true });
 });
+
+
 
 /* ======================================================
  * 관리자 삭제 API
@@ -251,6 +258,16 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+
+/* ======================================================
+ * Slack App
+ * ====================================================== */
+
+const app = new App({
+  token: process.env.SLACK_BOT_TOKEN,
+  receiver,
+});
+
 /* ======================================================
  * 날짜 유틸 (주간리스트 복구용)
  * ====================================================== */
@@ -275,6 +292,96 @@ function getThisWeekDates() {
     return d;
   });
 }
+
+/* ======================================================
+ * 이미지 생성 + 캐시
+ * ====================================================== */
+
+async function generateCalendarImage(type) {
+  const browser = await puppeteer.launch({ headless: "new" });
+  const page = await browser.newPage();
+
+  const targetUrl = `${BASE_URL}/banner/${type}`;
+  console.log("📸 캡처 URL:", targetUrl);
+
+  await page.goto(targetUrl, { waitUntil: "networkidle0" });
+
+  // 특정 요소가 로드됐는지 기다리기 (예: 캘린더 이미지의 셀렉터)
+  // 예를 들어, 캘린더 이미지에 id가 'calendar-image'라고 가정
+  // await page.waitForSelector('#calendar-image', { timeout: 5000 });
+
+  const screenshot = await page.screenshot({ fullPage: true });
+  await browser.close();
+
+  return screenshot;
+}
+
+async function regenerateCalendar(type) {
+  const imageBuffer = await generateCalendarImage(type);
+
+  const uploadResult = await app.client.files.uploadV2({
+    file: imageBuffer,
+    filename: `${type}_calendar.png`,
+  });
+
+  const uploadedFile = uploadResult?.files?.[0];
+  if (!uploadedFile?.id) {
+    console.log("❌ 파일 업로드 실패");
+    return "";
+  }
+
+  try {
+    await app.client.files.sharedPublicURL({
+      file: uploadedFile.id,
+    });
+  } catch (e) {
+    console.log("⚠️ sharedPublicURL 실패 (권한 문제 가능):", e?.data?.error || e?.message);
+  }
+
+  // 🔥 sharedPublicURL 반영 딜레이 방어 (최대 3회 재시도)
+  let fileInfo;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const info = await app.client.files.info({
+        file: uploadedFile.id,
+      });
+      fileInfo = info.file;
+
+      if (fileInfo.public_url_shared) break;
+
+      console.log(`⏳ public_url_shared 대기중... (${i + 1}/3)`);
+      await new Promise((res) => setTimeout(res, 1000));
+    } catch (e) {
+      console.log("⚠️ files.info 실패:", e?.data?.error || e?.message);
+      return "";
+    }
+  }
+
+  if (!fileInfo?.public_url_shared) {
+    console.log("❌ public_url_shared 끝까지 없음 → 워크스페이스 public 공유 제한 가능성");
+    return "";
+  }
+
+// 🔥 실제 이미지 접근 URL 생성 (CDN 썸네일 사용)
+  let publicUrl = fileInfo.thumb_1024 
+    || fileInfo.thumb_720 
+    || fileInfo.thumb_480;
+
+  if (!publicUrl) {
+    console.log("❌ 썸네일 URL 없음");
+    return "";
+  }
+
+  console.log("🖼 생성된 이미지 URL:", publicUrl);
+
+  const cache = loadCache();
+  cache[type] = publicUrl;
+  saveCache(cache);
+
+  return publicUrl;
+
+}
+
 
 /* ======================================================
  * 홈 화면 (3개 버튼)
@@ -307,7 +414,6 @@ async function publishHome(userId) {
 
 /* ======================================================
  * 배너 메인 화면 (주간리스트 복구 + 이미지 상단)
- * - 이미지 캡처는 제거했지만, 캐시에 URL이 있으면 그대로 표시 (기능 유지)
  * ====================================================== */
 
 async function publishBannerMain(userId, type) {
@@ -326,7 +432,7 @@ async function publishBannerMain(userId, type) {
     { type: "divider" },
   ];
 
-  // ✅ 이미지가 있으면 상단에 표시 (기존 동작 유지)
+  // ✅ 이미지가 있으면 상단에 표시
   if (calendarUrl && calendarUrl.startsWith("http")) {
     blocks.push({
       type: "image",
@@ -437,39 +543,29 @@ async function publishMyReservations(userId, type) {
     blocks.push({
       type: "section",
       text: { type: "mrkdwn", text: "등록한 예약이 없습니다." },
-    });
-  } else {
-    myList.forEach((item) => {
-      blocks.push({
-        type: "section",
-        text: {
-          type: "mrkdwn",
-          text: `*${item.banner}*\n${item.startDate} ~ ${item.endDate}\n${item.department} / ${item.manager}`,
-        },
       });
+    } else {
+      myList.forEach((item) => {
+        blocks.push({
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*${item.banner}*\n${item.startDate} ~ ${item.endDate}\n${item.department} / ${item.manager}`,
+          },
+        });
 
-      blocks.push({
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: { type: "plain_text", text: "✏️ 수정" },
-            action_id: "edit_my_reservation",
-            value: item.id,
-          },
-          {
-            type: "button",
-            text: { type: "plain_text", text: "🗑 삭제" },
-            style: "danger",
-            action_id: "delete_reservation",
-            value: item.id,
-          },
-        ],
+        blocks.push({
+          type: "actions",
+          elements: [
+            { type: "button", text: { type: "plain_text", text: "✏️ 수정" }, action_id: "edit_my_reservation", value: item.id },
+            { type: "button", text: { type: "plain_text", text: "🗑 삭제" }, style: "danger", action_id: "delete_reservation", value: item.id },
+          ],
+        });
+
+        blocks.push({ type: "divider" });
       });
+    }
 
-      blocks.push({ type: "divider" });
-    });
-  }
 
   await app.client.views.publish({
     user_id: userId,
@@ -478,14 +574,14 @@ async function publishMyReservations(userId, type) {
 }
 
 /* ======================================================
- * 이벤트 핸들러 (✅ 홈버튼 클릭)
+ * 이벤트 핸들러 (✅ 홈버튼 클릭 안먹는 문제 해결 핵심!!)
  * ====================================================== */
 
 app.event("app_home_opened", async ({ event }) => {
   await publishHome(event.user);
 });
 
-// ✅ 홈 화면 3개 버튼 클릭 핸들러
+// ✅ 홈 화면 3개 버튼 클릭 핸들러 (이게 빠져서 안 눌렸던 거)
 Object.keys(BANNER_TYPES).forEach((type) => {
   app.action(`open_banner_tab_${type}`, async ({ ack, body }) => {
     await ack();
@@ -532,6 +628,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
         submit: { type: "plain_text", text: "등록" },
         close: { type: "plain_text", text: "취소" },
         blocks: [
+
           // 🔹 타겟 이벤트코드
           {
             type: "input",
@@ -690,34 +787,47 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     const list = loadBannerData(type);
 
     const maxPriority =
-      list.length > 0 ? Math.max(...list.map((i) => i.priority || 0)) : 0;
+    list.length > 0
+      ? Math.max(...list.map((i) => i.priority || 0))
+      : 0;
+
 
     list.push({
-      id: Date.now().toString(),
-      priority: maxPriority + 1, // ✅ 자동 우선순위 부여
+    id: Date.now().toString(),
+        priority: maxPriority + 1, // ✅ 자동 우선순위 부여
 
-      eventCode: v.event_code_block.event_code.value,
-      bannerType: v.banner_type_block.banner_type.selected_option?.value || "",
-      mediaType: v.media_type_block.media_type.selected_option?.value || "",
-      banner: v.banner_block.banner.value,
-      bannerDesc: v.banner_desc_block.banner_desc.value,
-      startDate: v.start_date_block.start_date.selected_date,
-      endDate: v.end_date_block.end_date.selected_date,
-      linkType: v.link_type_block.link_type.selected_option?.value || "",
-      linkUrl: v.link_url_block?.link_url?.value || "",
-      linkData: v.link_data_block?.link_data?.value || "",
+        eventCode: v.event_code_block.event_code.value,
+        bannerType:
+          v.banner_type_block.banner_type.selected_option?.value || "",
+        mediaType:
+          v.media_type_block.media_type.selected_option?.value || "",
+        banner: v.banner_block.banner.value,
+        bannerDesc: v.banner_desc_block.banner_desc.value,
+        startDate: v.start_date_block.start_date.selected_date,
+        endDate: v.end_date_block.end_date.selected_date,
+        linkType:
+          v.link_type_block.link_type.selected_option?.value || "",
+        linkUrl: v.link_url_block?.link_url?.value || "",
+        linkData: v.link_data_block?.link_data?.value || "",
 
-      createdBy: body.user.id,
-      createdAt: new Date().toISOString(),
+        createdBy: body.user.id,
+        createdAt: new Date().toISOString(),
     });
+
 
     saveBannerData(type, list);
 
-    // ✅ (캡처/업로드 기능 제거) regenerateCalendar 호출 제거
+    // ✅ 등록 후 이미지 갱신 시도 (실패해도 앱은 계속 동작)
+    try {
+      await regenerateCalendar(type);
+    } catch (e) {
+      console.log("⚠️ 캘린더 이미지 갱신 실패:", e?.message || e);
+    }
 
     await publishBannerMain(body.user.id, type);
   });
 });
+
 
 /* ======================================================
  * 서버 실행
