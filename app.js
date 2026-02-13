@@ -161,13 +161,14 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   /* ===============================
      전체 필드 업데이트
   =============================== */
+
   list[index] = {
     ...oldItem,
     eventCode: updatedData.eventCode,
-    bannerCategory: updatedData.bannerCategory,
+    bannerType: updatedData.bannerType,
     mediaType: updatedData.mediaType,
     banner: updatedData.banner,
-    bannerContent: updatedData.bannerContent,
+    bannerDesc: updatedData.bannerDesc,
     startDate: updatedData.startDate,
     endDate: updatedData.endDate,
     linkType: updatedData.linkType,
@@ -176,6 +177,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     priority: newPriority,
     updatedAt: new Date().toISOString(),
   };
+
 
   saveBannerData(type, list);
 
@@ -332,6 +334,95 @@ function getThisWeekDates() {
     d.setDate(monday.getDate() + i);
     return d;
   });
+}
+
+/* ======================================================
+ * 이미지 생성 + 캐시
+ * ====================================================== */
+
+async function generateCalendarImage(type) {
+  const browser = await puppeteer.launch({ headless: "new" });
+  const page = await browser.newPage();
+
+  const targetUrl = `${BASE_URL}/banner/${type}`;
+  console.log("📸 캡처 URL:", targetUrl);
+
+  await page.goto(targetUrl, { waitUntil: "networkidle0" });
+
+  // 특정 요소가 로드됐는지 기다리기 (예: 캘린더 이미지의 셀렉터)
+  // 예를 들어, 캘린더 이미지에 id가 'calendar-image'라고 가정
+  // await page.waitForSelector('#calendar-image', { timeout: 5000 });
+
+  const screenshot = await page.screenshot({ fullPage: true });
+  await browser.close();
+
+  return screenshot;
+}
+
+async function regenerateCalendar(type) {
+  const imageBuffer = await generateCalendarImage(type);
+
+  const uploadResult = await app.client.files.uploadV2({
+    file: imageBuffer,
+    filename: `${type}_calendar.png`,
+  });
+
+  const uploadedFile = uploadResult?.files?.[0];
+  if (!uploadedFile?.id) {
+    console.log("❌ 파일 업로드 실패");
+    return "";
+  }
+
+  try {
+    await app.client.files.sharedPublicURL({
+      file: uploadedFile.id,
+    });
+  } catch (e) {
+    console.log("⚠️ sharedPublicURL 실패 (권한 문제 가능):", e?.data?.error || e?.message);
+  }
+
+  // 🔥 sharedPublicURL 반영 딜레이 방어 (최대 3회 재시도)
+  let fileInfo;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const info = await app.client.files.info({
+        file: uploadedFile.id,
+      });
+      fileInfo = info.file;
+
+      if (fileInfo.public_url_shared) break;
+
+      console.log(`⏳ public_url_shared 대기중... (${i + 1}/3)`);
+      await new Promise((res) => setTimeout(res, 1000));
+    } catch (e) {
+      console.log("⚠️ files.info 실패:", e?.data?.error || e?.message);
+      return "";
+    }
+  }
+
+  if (!fileInfo?.public_url_shared) {
+    console.log("❌ public_url_shared 끝까지 없음 → 워크스페이스 public 공유 제한 가능성");
+    return "";
+  }
+
+// 🔥 실제 이미지 접근 URL 생성 (CDN 썸네일 사용)
+  let publicUrl = fileInfo.thumb_1024 
+    || fileInfo.thumb_720 
+    || fileInfo.thumb_480;
+
+  if (!publicUrl) {
+    console.log("❌ 썸네일 URL 없음");
+    return "";
+  }
+
+  console.log("🖼 생성된 이미지 URL:", publicUrl);
+
+  const cache = loadCache();
+  cache[type] = publicUrl;
+  saveCache(cache);
+
+  return publicUrl;
+
 }
 
 
@@ -540,6 +631,17 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     await publishBannerMain(body.user.id, type);
   });
 });
+
+// ✅ 내 예약 보기 버튼 핸들러 (🔥 이게 빠져있음)
+app.action("my_reservations", async ({ ack, body }) => {
+  await ack();
+
+  const type = body.actions?.[0]?.value;
+  if (!type) return;
+
+  await publishMyReservations(body.user.id, type);
+});
+
 
 // ✅ 내 예약 보기
 app.action("edit_my_reservation", async ({ ack, body, client }) => {
@@ -883,13 +985,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
 
     // ✅ 등록 후 이미지 갱신 시도 (실패해도 앱은 계속 동작)
     // 🔥 Slack 화면 강제 갱신
-    try {
-      await publishBannerMain(oldItem.createdBy, type);
-    } catch (e) {
-      console.log("Slack 화면 갱신 실패:", e.message);
-    }
-
-
     await publishBannerMain(body.user.id, type);
   });
 });
@@ -911,14 +1006,16 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     bannerDesc: v.banner_desc_block.banner_desc.value,
     startDate: v.start_date_block.start_date.selected_date,
     endDate: v.end_date_block.end_date.selected_date,
-    priority: Number(v.priority_block.priority.value),
     updatedAt: new Date().toISOString(),
   };
+
 
   saveBannerData(type, list);
 
   // 🔥 Slack 화면 즉시 반영
   await publishBannerMain(body.user.id, type);
+  await publishMyReservations(body.user.id, type);
+
 });
 
 
