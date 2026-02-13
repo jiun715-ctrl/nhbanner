@@ -1,23 +1,5 @@
 [
   {
-    "department": "테스트부서",
-    "manager": "테스트담당자",
-    "banner": "테스트명",
-    "startDate": "2026-02-04",
-    "endDate": "2026-02-12",
-    "rank": 1,
-    "createdAt": "2026-02-04T23:14:36.519Z"
-  },
-  {
-    "department": "테스트부서2",
-    "manager": "테스트담당자2",
-    "banner": "테스트명2",
-    "startDate": "2026-02-01",
-    "endDate": "2026-02-13",
-    "rank": 1,
-    "createdAt": "2026-02-04T23:36:01.516Z"
-  },
-  {
     "id": "1770249014383",
     "department": "테스트부서3",
     "manager": "테스트담당자3",

@@ -68,26 +68,29 @@ function loadBannerData(type) {
 
   let data = JSON.parse(fs.readFileSync(file, "utf8"));
 
-  // 🔥 priority 없는 기존 데이터 자동 보정
-  const needFix = data.some((item) => item.priority == null);
+  let needSave = false;
 
-  if (needFix) {
-    console.log("🛠 priority 자동 보정 실행:", type);
+  data = data.map((item, index) => {
+    if (!item.id) {
+      item.id = Date.now().toString() + "_" + index;
+      needSave = true;
+    }
 
-    data = data
-      .sort((a, b) =>
-        (a.createdAt || "").localeCompare(b.createdAt || "")
-      )
-      .map((item, index) => ({
-        ...item,
-        priority: index + 1,
-      }));
+    if (item.priority == null) {
+      item.priority = index + 1;
+      needSave = true;
+    }
 
+    return item;
+  });
+
+  if (needSave) {
     saveBannerData(type, data);
   }
 
   return data;
 }
+
 
 
 function saveBannerData(type, data) {
@@ -103,9 +106,7 @@ const receiver = new ExpressReceiver({
   signingSecret: process.env.SLACK_SIGNING_SECRET,
 });
 
-receiver.router.use(cors());
-
-
+receiver.router.use(cors({ origin: BASE_URL }));
 
 receiver.router.post("/slack/events", (req, res) => {
   if (req.body.type === "url_verification") {
