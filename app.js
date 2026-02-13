@@ -460,35 +460,152 @@ Object.keys(BANNER_TYPES).forEach((type) => {
         submit: { type: "plain_text", text: "등록" },
         close: { type: "plain_text", text: "취소" },
         blocks: [
+
+          // 🔹 타겟 이벤트코드
           {
             type: "input",
-            block_id: "department_block",
-            label: { type: "plain_text", text: "담당부서명" },
-            element: { type: "plain_text_input", action_id: "department" },
+            block_id: "event_code_block",
+            label: { type: "plain_text", text: "타겟 이벤트코드" },
+            element: {
+              type: "plain_text_input",
+              action_id: "event_code",
+              placeholder: {
+                type: "plain_text",
+                text: "* ex) NMSV01",
+              },
+            },
           },
+
+          // 🔹 배너구분 (콤보박스)
           {
             type: "input",
-            block_id: "manager_block",
-            label: { type: "plain_text", text: "담당자명" },
-            element: { type: "plain_text_input", action_id: "manager" },
+            block_id: "banner_type_block",
+            label: { type: "plain_text", text: "배너구분" },
+            element: {
+              type: "static_select",
+              action_id: "banner_type",
+              placeholder: {
+                type: "plain_text",
+                text: "선택하세요",
+              },
+              options: [
+                { text: { type: "plain_text", text: "00. 디폴트" }, value: "00" },
+                { text: { type: "plain_text", text: "01. 상단배너" }, value: "01" },
+                { text: { type: "plain_text", text: "02. 서비스배너" }, value: "02" },
+                { text: { type: "plain_text", text: "03. 플로팅배너" }, value: "03" },
+                { text: { type: "plain_text", text: "04. 이벤트공지" }, value: "04" },
+                { text: { type: "plain_text", text: "05. 로그아웃배너" }, value: "05" },
+              ],
+            },
           },
+
+          // 🔹 매체유형
+          {
+            type: "input",
+            block_id: "media_type_block",
+            label: { type: "plain_text", text: "매체유형" },
+            element: {
+              type: "static_select",
+              action_id: "media_type",
+              placeholder: {
+                type: "plain_text",
+                text: "선택하세요",
+              },
+              options: [
+                { text: { type: "plain_text", text: "나무" }, value: "tree" },
+                { text: { type: "plain_text", text: "N2" }, value: "n2" },
+              ],
+            },
+          },
+
+          // 🔹 배너명 (기존 유지)
           {
             type: "input",
             block_id: "banner_block",
             label: { type: "plain_text", text: "배너명" },
-            element: { type: "plain_text_input", action_id: "banner" },
+            element: {
+              type: "plain_text_input",
+              action_id: "banner",
+            },
           },
+
+          // 🔹 배너내용
+          {
+            type: "input",
+            block_id: "banner_desc_block",
+            label: { type: "plain_text", text: "배너내용" },
+            element: {
+              type: "plain_text_input",
+              action_id: "banner_desc",
+              multiline: true,
+            },
+          },
+
+          // 🔹 노출시작 희망일자
           {
             type: "input",
             block_id: "start_date_block",
-            label: { type: "plain_text", text: "게시 시작일" },
-            element: { type: "datepicker", action_id: "start_date" },
+            label: { type: "plain_text", text: "노출시작 희망일자" },
+            element: {
+              type: "datepicker",
+              action_id: "start_date",
+            },
           },
+
+          // 🔹 노출종료일자
           {
             type: "input",
             block_id: "end_date_block",
-            label: { type: "plain_text", text: "게시 종료일" },
-            element: { type: "datepicker", action_id: "end_date" },
+            label: { type: "plain_text", text: "노출종료일자" },
+            element: {
+              type: "datepicker",
+              action_id: "end_date",
+            },
+          },
+
+          // 🔹 바로가기속성
+          {
+            type: "input",
+            block_id: "link_type_block",
+            label: { type: "plain_text", text: "바로가기속성" },
+            element: {
+              type: "static_select",
+              action_id: "link_type",
+              placeholder: {
+                type: "plain_text",
+                text: "선택하세요",
+              },
+              options: [
+                { text: { type: "plain_text", text: "화면오픈" }, value: "screen" },
+                { text: { type: "plain_text", text: "팝업오픈" }, value: "popup" },
+                { text: { type: "plain_text", text: "프레임팝업" }, value: "frame_popup" },
+                { text: { type: "plain_text", text: "URL" }, value: "url" },
+              ],
+            },
+          },
+
+          // 🔹 바로가기링크
+          {
+            type: "input",
+            block_id: "link_url_block",
+            optional: true,
+            label: { type: "plain_text", text: "바로가기링크(선택)" },
+            element: {
+              type: "plain_text_input",
+              action_id: "link_url",
+            },
+          },
+
+          // 🔹 바로가기링크데이터
+          {
+            type: "input",
+            block_id: "link_data_block",
+            optional: true,
+            label: { type: "plain_text", text: "바로가기링크데이터(선택)" },
+            element: {
+              type: "plain_text_input",
+              action_id: "link_data",
+            },
           },
         ],
       },
@@ -503,14 +620,20 @@ Object.keys(BANNER_TYPES).forEach((type) => {
 
     list.push({
       id: Date.now().toString(),
-      department: v.department_block.department.value,
-      manager: v.manager_block.manager.value,
+      eventCode: v.event_code_block.event_code.value,
+      bannerType: v.banner_type_block.banner_type.selected_option?.value,
+      mediaType: v.media_type_block.media_type.selected_option?.value,
       banner: v.banner_block.banner.value,
+      bannerDesc: v.banner_desc_block.banner_desc.value,
       startDate: v.start_date_block.start_date.selected_date,
       endDate: v.end_date_block.end_date.selected_date,
+      linkType: v.link_type_block.link_type.selected_option?.value,
+      linkUrl: v.link_url_block?.link_url?.value || "",
+      linkData: v.link_data_block?.link_data?.value || "",
       createdBy: body.user.id,
       createdAt: new Date().toISOString(),
     });
+
 
     saveBannerData(type, list);
 
