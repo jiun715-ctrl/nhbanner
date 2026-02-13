@@ -9,6 +9,9 @@ const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
 const puppeteer = require("puppeteer");
+const express = require("express");
+receiver.router.use(express.json());
+
 
 /* ======================================================
  * 기본 설정
@@ -127,16 +130,21 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     return res.status(404).json({ error: "Not found" });
   }
 
-  const oldPriority = list[index].priority || 1;
-  const newPriority = Number(updatedData.priority) || oldPriority;
+  const oldItem = list[index];
+  const oldPriority = oldItem.priority || 1;
+  const newPriority =
+    updatedData.priority !== undefined
+      ? Number(updatedData.priority)
+      : oldPriority;
 
-  // 🔥 우선순위 재정렬 로직
+  /* ===============================
+     우선순위 재정렬
+  =============================== */
   if (newPriority !== oldPriority) {
     list.forEach((item) => {
       if (item.id === id) return;
 
       if (newPriority < oldPriority) {
-        // 위로 올릴 때
         if (
           item.priority >= newPriority &&
           item.priority < oldPriority
@@ -144,7 +152,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
           item.priority += 1;
         }
       } else {
-        // 아래로 내릴 때
         if (
           item.priority <= newPriority &&
           item.priority > oldPriority
@@ -155,21 +162,48 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     });
   }
 
-  // 🔥 해당 항목 업데이트
+  /* ===============================
+     전체 필드 업데이트
+  =============================== */
   list[index] = {
-    ...list[index],
-    ...updatedData,
+    ...oldItem,
+    eventCode: updatedData.eventCode,
+    bannerCategory: updatedData.bannerCategory,
+    mediaType: updatedData.mediaType,
+    banner: updatedData.banner,
+    bannerContent: updatedData.bannerContent,
+    startDate: updatedData.startDate,
+    endDate: updatedData.endDate,
+    linkType: updatedData.linkType,
+    linkUrl: updatedData.linkUrl || "",
+    linkData: updatedData.linkData || "",
     priority: newPriority,
     updatedAt: new Date().toISOString(),
   };
 
   saveBannerData(type, list);
 
-  // 🔥 작성자에게 Slack 알림 보내기
+  /* ===============================
+     Slack 알림 (변경된 컬럼 표시)
+  =============================== */
   try {
+    const changedFields = [];
+
+    Object.keys(list[index]).forEach((key) => {
+      if (
+        key !== "updatedAt" &&
+        key !== "createdAt" &&
+        oldItem[key] !== list[index][key]
+      ) {
+        changedFields.push(key);
+      }
+    });
+
     await app.client.chat.postMessage({
-      channel: list[index].createdBy,
-      text: `📢 관리자에 의해 "${list[index].banner}" 게시물이 수정되었습니다.`,
+      channel: oldItem.createdBy,
+      text: `📢 관리자에 의해 "${oldItem.banner}" 게시물이 수정되었습니다.\n\n수정된 항목:\n${changedFields.join(
+        ", "
+      )}`,
     });
   } catch (e) {
     console.log("Slack DM 실패:", e.message);
@@ -177,6 +211,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
   res.json({ success: true });
 });
+
 
 
 /* ======================================================
