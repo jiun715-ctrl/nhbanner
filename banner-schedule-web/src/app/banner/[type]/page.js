@@ -104,7 +104,8 @@ export default function BannerPage() {
   const selectedDayItems = selectedDate
     ? banners
         .filter(b => b.startDate <= selectedDate && b.endDate >= selectedDate)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .sort((a, b) => (a.priority || 99) - (b.priority || 99))
+        .slice(0, 7)
     : [];
 
   return (
@@ -157,7 +158,7 @@ export default function BannerPage() {
 
             const dayItems = banners
               .filter(b => b.startDate <= dateStr && b.endDate >= dateStr)
-              .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+              .sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
             const visible = dayItems.slice(0, 5);
             const hasWaiting = dayItems.length > 5;
@@ -212,27 +213,31 @@ export default function BannerPage() {
               <ul className="space-y-2">
                 {selectedDayItems.map((item, index) => {
                   const isWaiting = index >= 5;
-                  const waitingNumber = isWaiting ? index - 4 : null;
+                  const rankLabel = isWaiting
+                    ? `대기 ${index - 4}`
+                    : `${index + 1}순위`;
 
                   return (
                     <li
                       key={item.id}
-                      className={`rounded px-2 py-1 text-sm ${bannerColorMap[item.banner]}`}
+                      className={`rounded px-3 py-2 text-sm ${bannerColorMap[item.banner]}`}
                     >
                       <div className="flex items-center gap-2 font-medium">
-                        {isWaiting && (
-                          <span className="text-xs font-semibold text-red-600">
-                            [대기 {waitingNumber}번]
-                          </span>
-                        )}
+                        <span className={`inline-block min-w-[52px] rounded px-1.5 py-0.5 text-xs font-bold ${
+                          isWaiting
+                            ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
+                            : "bg-white/60 text-zinc-700 dark:bg-black/30 dark:text-zinc-200"
+                        }`}>
+                          {rankLabel}
+                        </span>
                         {item.banner}
                       </div>
 
-                      <div className="text-xs opacity-80">
-                        {item.department} / {item.manager}
+                      <div className="ml-[60px] text-xs opacity-80">
+                        {item.bannerDesc || ""}
                       </div>
 
-                      <div className="text-xs opacity-60">
+                      <div className="ml-[60px] text-xs opacity-60">
                         {item.startDate} ~ {item.endDate}
                       </div>
                     </li>

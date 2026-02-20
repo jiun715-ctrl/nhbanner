@@ -218,8 +218,12 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     return res.status(404).json({ error: "Not found" });
   }
 
-  const oldItem = list[index];
+const oldItem = list[index];
   const oldPriority = oldItem.priority || 1;
+
+  // 🔥 모든 아이템의 기존 우선순위 저장 (swap 감지용)
+  const oldPriorityMap = {};
+  list.forEach(item => { oldPriorityMap[item.id] = item.priority; });
   const newPriority =
     updatedData.priority !== undefined
       ? Number(updatedData.priority)
@@ -252,7 +256,12 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     const reloadedList = await loadBannerData(type);
     const priorityMap = [];
     reloadedList
-      .sort((a, b) => a.priority - b.priority)
+      .sort((a, b) => {
+        if (a.priority !== b.priority) return a.priority - b.priority;
+        if (a.id === id) return -1;
+        if (b.id === id) return 1;
+        return 0;
+      })
       .forEach((item, idx) => {
         if (item.priority !== idx + 1) {
           priorityMap.push({ id: item.id, priority: idx + 1 });
@@ -312,6 +321,30 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     console.log("Slack DM 실패:", e.message);
   }
 
+  /* ===============================
+     🔥 우선순위 밀린 다른 유저에게 DM
+  =============================== */
+  if (newPriority !== oldPriority) {
+    try {
+      for (const item of updatedList) {
+        if (item.id === id) continue;
+        const oldP = oldPriorityMap[item.id];
+        const newP = item.priority;
+        if (oldP !== undefined && oldP !== newP) {
+          await app.client.chat.postMessage({
+            channel: item.createdBy,
+            text:
+              `📢 관리자에 의해 *"${item.banner}"* 게시물의 우선순위가 변경되었습니다.\n\n` +
+              `• 우선순위\n   ${oldP} → ${newP}`,
+          });
+        }
+      }
+    } catch (e) {
+      console.log("우선순위 변경 DM 실패:", e.message);
+    }
+  }
+
+  
   /* ===============================
      🔥 Slack 화면 전체 유저 갱신
   =============================== */
