@@ -520,11 +520,11 @@ async function publishMyReservations(userId, type) {
         },
       });
 
-      blocks.push({
+    blocks.push({
         type: "actions",
         elements: [
-          { type: "button", text: { type: "plain_text", text: "✏️ 수정" }, action_id: "edit_my_reservation", value: item.id },
-          { type: "button", text: { type: "plain_text", text: "🗑 삭제" }, style: "danger", action_id: "delete_reservation", value: item.id },
+          { type: "button", text: { type: "plain_text", text: "✏️ 수정" }, action_id: "edit_my_reservation", value: `${type}:${item.id}` },
+          { type: "button", text: { type: "plain_text", text: "🗑 삭제" }, style: "danger", action_id: "delete_reservation", value: `${type}:${item.id}` },
         ],
       });
 
@@ -563,21 +563,14 @@ app.action("my_reservations", async ({ ack, body }) => {
 app.action("edit_my_reservation", async ({ ack, body, client }) => {
   await ack();
 
-  const id = body.actions?.[0]?.value;
-  if (!id) return;
+  const raw = body.actions?.[0]?.value;
+  if (!raw) return;
 
-  let type = null;
-  let item = null;
+  const [type, id] = raw.split(":");
+  if (!type || !id) return;
 
-  for (const t of Object.keys(BANNER_TYPES)) {
-    const list = await loadBannerData(t);
-    const found = list.find((i) => i.id === id);
-    if (found) {
-      type = t;
-      item = found;
-      break;
-    }
-  }
+  const list = await loadBannerData(type);
+  const item = list.find((i) => i.id === id);
 
   if (!item) return;
 
@@ -741,24 +734,15 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
 app.action("delete_reservation", async ({ ack, body }) => {
   await ack();
 
-  const id = body.actions?.[0]?.value;
+  const raw = body.actions?.[0]?.value;
   const userId = body.user.id;
-  if (!id) return;
+  if (!raw) return;
 
-  let type = null;
-
-  for (const t of Object.keys(BANNER_TYPES)) {
-    const list = await loadBannerData(t);
-    const found = list.find(i => i.id === id);
-    if (found) {
-      type = t;
-      break;
-    }
-  }
-
-  if (!type) return;
+  const [type, id] = raw.split(":");
+  if (!type || !id) return;
 
   const list = await loadBannerData(type);
+  
   const newList = list.filter(item => item.id !== id);
 
   newList.sort((a, b) => a.priority - b.priority)
