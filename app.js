@@ -897,8 +897,7 @@ app.view("admin_password_check", async ({ ack, view, body }) => {
             {
               type: "button",
               text: { type: "plain_text", text: "📋 관리자 페이지 열기" },
-              url: `${BASE_URL}/admin`,
-              style: "primary",
+              url: "https://nhbanner.vercel.app/admin",
             },
             {
               type: "button",
