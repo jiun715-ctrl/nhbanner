@@ -457,6 +457,18 @@ async function publishHome(userId) {
             value: type,
           })),
         },
+        { type: "divider" },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "🔐 관리자전용" },
+              action_id: "open_admin_password",
+              style: "danger",
+            },
+          ],
+        },
       ],
     },
   });
@@ -849,6 +861,65 @@ app.action("go_home", async ({ ack, body }) => {
   await ack();
   await publishHome(body.user.id);
 });
+
+
+app.action("open_admin_password", async ({ ack, body, client }) => {
+  await ack();
+  await client.views.open({
+    trigger_id: body.trigger_id,
+    view: {
+      type: "modal",
+      callback_id: "admin_password_check",
+      title: { type: "plain_text", text: "🔐 관리자 인증" },
+      submit: { type: "plain_text", text: "확인" },
+      close: { type: "plain_text", text: "취소" },
+      blocks: [
+        {
+          type: "input",
+          block_id: "pw_block",
+          label: { type: "plain_text", text: "비밀번호를 입력하세요" },
+          element: {
+            type: "plain_text_input",
+            action_id: "pw_input",
+            placeholder: { type: "plain_text", text: "비밀번호 입력" },
+          },
+        },
+      ],
+    },
+  });
+});
+
+app.view("admin_password_check", async ({ ack, view, body, client }) => {
+  const pw = view.state.values.pw_block.pw_input.value;
+
+  if (pw !== "0099") {
+    await ack({
+      response_action: "errors",
+      errors: { pw_block: "비밀번호가 틀렸습니다." },
+    });
+    return;
+  }
+
+  await ack();
+
+  await client.chat.postMessage({
+    channel: body.user.id,
+    text: "✅ 인증 성공! 아래 버튼을 클릭하세요.",
+    blocks: [
+      {
+        type: "section",
+        text: { type: "mrkdwn", text: "✅ *관리자 인증 성공!*" },
+        accessory: {
+          type: "button",
+          text: { type: "plain_text", text: "📋 관리자 페이지 열기" },
+          url: "https://nhbanner.vercel.app/admin",
+          style: "primary",
+        },
+      },
+    ],
+  });
+});
+
 
 /* ======================================================
  * 등록 모달
