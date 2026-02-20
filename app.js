@@ -9,6 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const cors = require("cors");
 const puppeteer = require("puppeteer");
+const mongoose = require("mongoose");
 
 /* ======================================================
  * 기본 설정
@@ -18,6 +19,37 @@ const DATA_DIR = path.join(__dirname, "data");
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
 
 const CACHE_FILE = path.join(DATA_DIR, "calendarCache.json");
+/* ======================================================
+ * MongoDB 연결
+ * ====================================================== */
+
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log("✅ MongoDB 연결 성공"))
+  .catch(err => console.log("❌ MongoDB 연결 실패:", err.message));
+
+const bannerSchema = new mongoose.Schema({
+  id: String,
+  priority: Number,
+  eventCode: String,
+  bannerType: String,
+  mediaType: String,
+  banner: String,
+  bannerDesc: String,
+  startDate: String,
+  endDate: String,
+  linkType: String,
+  linkUrl: String,
+  linkData: String,
+  createdBy: String,
+  createdAt: String,
+  updatedAt: String,
+}, { strict: false });
+
+const BannerModel = {
+  home: mongoose.model("Home", bannerSchema, "home"),
+  floating: mongoose.model("Floating", bannerSchema, "floating"),
+  interest: mongoose.model("Interest", bannerSchema, "interest"),
+};
 
 /* 🔥 WEB_BASE_URL 안전 방어 */
 const BASE_URL =
@@ -26,6 +58,7 @@ const BASE_URL =
     : "http://localhost:3001";
 
 console.log("🌐 WEB BASE URL:", BASE_URL);
+
 
 // 수정 — 형식 검증 추가
 function loadCache() {
@@ -69,40 +102,37 @@ function getDataFile(type) {
   return path.join(DATA_DIR, `${type}.json`);
 }
 
-function loadBannerData(type) {
-  const file = getDataFile(type);
-  if (!fs.existsSync(file)) return [];
+async function loadBannerData(type) {
+  try {
+    const model = BannerModel[type];
+    if (!model) return [];
 
-  let data = JSON.parse(fs.readFileSync(file, "utf8"));
+    const docs = await model.find({}).lean();
 
-  let needSave = false;
-
-  data = data.map((item, index) => {
-    if (!item.id) {
-      item.id = Date.now().toString() + "_" + index;
-      needSave = true;
-    }
-
-    if (item.priority == null) {
-      item.priority = index + 1;
-      needSave = true;
-    }
-
-    return item;
-  });
-
-  if (needSave) {
-    saveBannerData(type, data);
+    return docs.map((doc, index) => ({
+      ...doc,
+      id: doc.id || doc._id.toString(),
+      priority: doc.priority ?? (index + 1),
+    }));
+  } catch (e) {
+    console.log(`❌ loadBannerData(${type}) 실패:`, e.message);
+    return [];
   }
-
-  return data;
 }
 
+async function saveBannerData(type, data) {
+  try {
+    const model = BannerModel[type];
+    if (!model) return;
 
-
-function saveBannerData(type, data) {
-  const file = getDataFile(type);
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+    await model.deleteMany({});
+    if (data.length > 0) {
+      await model.insertMany(data);
+    }
+    console.log(`✅ saveBannerData(${type}) 저장 완료: ${data.length}건`);
+  } catch (e) {
+    console.log(`❌ saveBannerData(${type}) 실패:`, e.message);
+  }
 }
 
 /* ======================================================
@@ -131,8 +161,9 @@ receiver.router.post("/slack/events", (req, res) => {
   res.sendStatus(200);
 });
 
-receiver.router.get("/api/banner/:type", (req, res) => {
-  res.json(loadBannerData(req.params.type));
+receiver.router.get("/api/banner/:type", async (req, res) => {
+  const data = await loadBannerData(req.params.type);
+  res.json(data);
 });
 
 /* ======================================================
@@ -142,7 +173,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   const { type, id } = req.params;
   const updatedData = req.body;
 
-  const list = loadBannerData(type);
+  const list = await loadBannerData(type);
   const index = list.findIndex((item) => item.id === id);
 
   if (index === -1) {
@@ -283,7 +314,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
   const { type, id } = req.params;
 
-  const list = loadBannerData(type);
+  const list = await loadBannerData(type);
   const target = list.find((item) => item.id === id);
 
   if (!target) {
@@ -501,7 +532,7 @@ async function publishHome(userId) {
 async function publishBannerMain(userId, type) {
   const cache = loadCache();
   const calendarUrl = cache[type];
-  const allData = loadBannerData(type);
+  const allData = await loadBannerData(type);
 
   const dates = getThisWeekDates();
   const ranks = Array.from({ length: 7 }, (_, i) => i + 1); // 1~7 (5순위 + 대기2)
@@ -599,7 +630,8 @@ async function publishBannerMain(userId, type) {
  * ====================================================== */
 
 async function publishMyReservations(userId, type) {
-  const myList = loadBannerData(type).filter((item) => item.createdBy === userId);
+  const allData = await loadBannerData(type);
+  const myList = allData.filter((item) => item.createdBy === userId);
 
   const blocks = [
     {
@@ -696,14 +728,15 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
   let type = null;
   let item = null;
 
-  Object.keys(BANNER_TYPES).forEach((t) => {
-    const list = loadBannerData(t);
+  for (const t of Object.keys(BANNER_TYPES)) {
+    const list = await loadBannerData(t);
     const found = list.find((i) => i.id === id);
     if (found) {
       type = t;
       item = found;
+      break;
     }
-  });
+  }
 
   if (!item) return;
 
@@ -908,7 +941,7 @@ app.action("delete_reservation", async ({ ack, body }) => {
 
       if (!type) return;
 
-      const list = loadBannerData(type);
+      const list = await loadBannerData(type);
       const newList = list.filter(item => item.id !== id);
 
       newList.sort((a, b) => a.priority - b.priority)
@@ -918,7 +951,7 @@ app.action("delete_reservation", async ({ ack, body }) => {
       await publishMyReservations(userId, type);
   });
 
-  const list = loadBannerData(type);
+  const list = await loadBannerData(type);
   const newList = list.filter(item => item.id !== id);
 
   saveBannerData(type, newList);
@@ -1113,7 +1146,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     await ack();
 
     const v = view.state.values;
-    const list = loadBannerData(type);
+    const list = await loadBannerData(type);
 
     const maxPriority =
     list.length > 0
@@ -1158,7 +1191,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
   const { id, type } = JSON.parse(view.private_metadata);
   const v = view.state.values;
 
-  const list = loadBannerData(type);
+  const list = await loadBannerData(type);
   const index = list.findIndex((i) => i.id === id);
   if (index === -1) return;
 
