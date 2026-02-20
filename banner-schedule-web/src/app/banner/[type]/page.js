@@ -141,7 +141,7 @@ export default function BannerPage() {
           {["월","화","수","목","금","토","일"].map(d => (
             <div
               key={d}
-              className="border-b border-zinc-200 bg-zinc-100 py-2 dark:border-zinc-800 dark:bg-zinc-900"
+
             >
               {d}
             </div>

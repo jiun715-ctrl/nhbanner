@@ -251,19 +251,26 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   }
 
 
-  /* ===============================
+/* ===============================
      🔥 Slack 화면 전체 유저 갱신
   =============================== */
   try {
     const uniqueUsers = [...new Set(list.map(i => i.createdBy))];
+    console.log("🔄 Slack 갱신 대상 유저:", uniqueUsers);
 
     for (const userId of uniqueUsers) {
-      await publishBannerMain(userId, type);
-      await publishMyReservations(userId, type);  // 🔥 추가
+      try {
+        await publishBannerMain(userId, type);
+        console.log(`✅ publishBannerMain 성공: ${userId}`);
+        await publishMyReservations(userId, type);
+        console.log(`✅ publishMyReservations 성공: ${userId}`);
+      } catch (innerErr) {
+        console.log(`❌ Slack 갱신 실패 (${userId}):`, innerErr.message);
+        console.log("상세:", JSON.stringify(innerErr?.data || {}));
+      }
     }
-
   } catch (e) {
-    console.log("Slack 화면 갱신 실패:", e.message);
+    console.log("❌ Slack 화면 갱신 전체 실패:", e.message);
   }
 
   res.json({ success: true });
@@ -306,16 +313,24 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
       console.log("Slack DM 실패:", e.message);
     }
 
-    /* ===============================
-      🔥 Slack 화면 강제 갱신
+/* ===============================
+      🔥 Slack 화면 강제 갱신 (전체 유저)
     =============================== */
     try {
-      // 홈 탭 갱신
-      await publishBannerMain(target.createdBy, type);
+      const allUsers = [...new Set(newList.map(i => i.createdBy))];
+      // 삭제된 유저도 포함
+      if (!allUsers.includes(target.createdBy)) {
+        allUsers.push(target.createdBy);
+      }
 
-      // 내 예약 보기 갱신
-      await publishMyReservations(target.createdBy, type);
-
+      for (const userId of allUsers) {
+        try {
+          await publishBannerMain(userId, type);
+          await publishMyReservations(userId, type);
+        } catch (innerErr) {
+          console.log(`Slack 갱신 실패 (${userId}):`, innerErr.message);
+        }
+      }
     } catch (e) {
       console.log("Slack 화면 갱신 실패:", e.message);
     }
