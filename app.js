@@ -862,6 +862,31 @@ app.action("go_home", async ({ ack, body }) => {
   await publishHome(body.user.id);
 });
 
+app.action("open_admin_password", async ({ ack, body, client }) => {
+  await ack();
+  await client.views.open({
+    trigger_id: body.trigger_id,
+    view: {
+      type: "modal",
+      callback_id: "admin_password_check",
+      title: { type: "plain_text", text: "🔐 관리자 인증" },
+      submit: { type: "plain_text", text: "확인" },
+      close: { type: "plain_text", text: "취소" },
+      blocks: [
+        {
+          type: "input",
+          block_id: "pw_block",
+          label: { type: "plain_text", text: "비밀번호를 입력하세요" },
+          element: {
+            type: "plain_text_input",
+            action_id: "pw_input",
+            placeholder: { type: "plain_text", text: "숫자 4자리" },
+          },
+        },
+      ],
+    },
+  });
+});
 
 app.view("admin_password_check", async ({ ack, view, body }) => {
   const pw = view.state.values.pw_block.pw_input.value;
@@ -869,42 +894,25 @@ app.view("admin_password_check", async ({ ack, view, body }) => {
   if (pw !== "0099") {
     await ack({
       response_action: "errors",
-      errors: { pw_block: "비밀번호가 틀렸습니다." },
+      errors: { pw_block: "❌ 비밀번호가 틀렸습니다." },
     });
     return;
   }
 
-  await ack();
-
-  // 홈 화면에 관리자 링크 버튼 표시
-  await app.client.views.publish({
-    user_id: body.user.id,
+  await ack({
+    response_action: "update",
     view: {
-      type: "home",
+      type: "modal",
+      title: { type: "plain_text", text: "✅ 인증 성공" },
       blocks: [
         {
-          type: "header",
-          text: { type: "plain_text", text: "🔐 관리자 인증 성공" },
-        },
-        { type: "divider" },
-        {
           type: "section",
-          text: { type: "mrkdwn", text: "아래 버튼을 클릭하면 관리자 페이지가 열립니다." },
-        },
-        {
-          type: "actions",
-          elements: [
-            {
-              type: "button",
-              text: { type: "plain_text", text: "📋 관리자 페이지 열기" },
-              url: "https://nhbanner.vercel.app/admin",
-            },
-            {
-              type: "button",
-              text: { type: "plain_text", text: "⬅ 돌아가기" },
-              action_id: "go_home",
-            },
-          ],
+          text: { type: "mrkdwn", text: "✅ 인증 성공! 아래 버튼을 눌러주세요." },
+          accessory: {
+            type: "button",
+            text: { type: "plain_text", text: "📋 관리자 페이지 열기" },
+            url: "https://nhbanner.vercel.app/admin",
+          },
         },
       ],
     },
