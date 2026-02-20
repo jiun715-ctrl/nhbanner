@@ -16,8 +16,6 @@ mongoose.connect(process.env.MONGODB_URI, {
   serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
   maxPoolSize: 10,
-  retryWrites: true,
-  retryReads: true,
 });
 
 mongoose.connection.on("connected", () => console.log("✅ MongoDB 연결 성공"));
@@ -30,7 +28,7 @@ mongoose.connection.on("disconnected", () => {
 });
 
 const bannerSchema = new mongoose.Schema({
-  id: String,
+  id: { type: String, index: true },
   priority: Number,
   eventCode: String,
   bannerType: String,
@@ -42,7 +40,7 @@ const bannerSchema = new mongoose.Schema({
   linkType: String,
   linkUrl: String,
   linkData: String,
-  createdBy: String,
+  createdBy: { type: String, index: true },
   createdAt: String,
   updatedAt: String,
 }, { strict: false });
@@ -75,6 +73,13 @@ const BANNER_TYPES = {
  * MongoDB 유틸
  * ====================================================== */
 
+function cleanDoc(doc) {
+  const obj = { ...doc };
+  delete obj._id;
+  delete obj.__v;
+  return obj;
+}
+
 async function loadBannerData(type) {
   try {
     const model = BannerModel[type];
@@ -82,11 +87,12 @@ async function loadBannerData(type) {
 
     const docs = await model.find({}).lean();
 
-    return docs.map((doc, index) => ({
-      ...doc,
-      id: doc.id || doc._id.toString(),
-      priority: doc.priority ?? (index + 1),
-    }));
+    return docs.map((doc, index) => {
+      const clean = cleanDoc(doc);
+      clean.id = clean.id || doc._id.toString();
+      clean.priority = clean.priority ?? (index + 1);
+      return clean;
+    });
   } catch (e) {
     console.log(`❌ loadBannerData(${type}) 실패:`, e.message);
     return [];
@@ -98,13 +104,72 @@ async function saveBannerData(type, data) {
     const model = BannerModel[type];
     if (!model) return;
 
+    const cleanData = data.map(d => cleanDoc(d));
+
     await model.deleteMany({});
-    if (data.length > 0) {
-      await model.insertMany(data);
+    if (cleanData.length > 0) {
+      await model.insertMany(cleanData);
     }
-    console.log(`✅ saveBannerData(${type}) 저장 완료: ${data.length}건`);
+    console.log(`✅ saveBannerData(${type}) 저장 완료: ${cleanData.length}건`);
   } catch (e) {
     console.log(`❌ saveBannerData(${type}) 실패:`, e.message);
+  }
+}
+
+// 🔥 단건 추가 (전체 삭제+삽입 대신)
+async function addBannerItem(type, item) {
+  try {
+    const model = BannerModel[type];
+    if (!model) return;
+    const clean = cleanDoc(item);
+    await model.create(clean);
+    console.log(`✅ addBannerItem(${type}) 추가 완료`);
+  } catch (e) {
+    console.log(`❌ addBannerItem(${type}) 실패:`, e.message);
+  }
+}
+
+// 🔥 단건 수정 (전체 삭제+삽입 대신)
+async function updateBannerItem(type, id, updates) {
+  try {
+    const model = BannerModel[type];
+    if (!model) return;
+    await model.updateOne({ id }, { $set: updates });
+    console.log(`✅ updateBannerItem(${type}) 수정 완료: ${id}`);
+  } catch (e) {
+    console.log(`❌ updateBannerItem(${type}) 실패:`, e.message);
+  }
+}
+
+// 🔥 단건 삭제
+async function deleteBannerItem(type, id) {
+  try {
+    const model = BannerModel[type];
+    if (!model) return;
+    await model.deleteOne({ id });
+    console.log(`✅ deleteBannerItem(${type}) 삭제 완료: ${id}`);
+  } catch (e) {
+    console.log(`❌ deleteBannerItem(${type}) 실패:`, e.message);
+  }
+}
+
+// 🔥 우선순위 일괄 업데이트
+async function updatePriorities(type, priorityMap) {
+  try {
+    const model = BannerModel[type];
+    if (!model) return;
+    const ops = priorityMap.map(({ id, priority }) => ({
+      updateOne: {
+        filter: { id },
+        update: { $set: { priority } },
+      },
+    }));
+    if (ops.length > 0) {
+      await model.bulkWrite(ops);
+    }
+    console.log(`✅ updatePriorities(${type}) 완료: ${ops.length}건`);
+  } catch (e) {
+    console.log(`❌ updatePriorities(${type}) 실패:`, e.message);
   }
 }
 
@@ -161,25 +226,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       : oldPriority;
 
   /* ===============================
-     우선순위 재정렬
-  =============================== */
-  if (newPriority !== oldPriority) {
-    list.forEach((item) => {
-      if (item.id === id) return;
-
-      if (newPriority < oldPriority) {
-        if (item.priority >= newPriority && item.priority < oldPriority) {
-          item.priority += 1;
-        }
-      } else {
-        if (item.priority <= newPriority && item.priority > oldPriority) {
-          item.priority -= 1;
-        }
-      }
-    });
-  }
-
-  /* ===============================
      전체 필드 업데이트
   =============================== */
   const safeUpdate = {};
@@ -195,14 +241,31 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     }
   });
 
-  list[index] = {
-    ...oldItem,
-    ...safeUpdate,
-    priority: newPriority,
-    updatedAt: new Date().toISOString(),
-  };
+  safeUpdate.priority = newPriority;
+  safeUpdate.updatedAt = new Date().toISOString();
 
-  await saveBannerData(type, list);
+  // 🔥 단건 업데이트 (빠름)
+  await updateBannerItem(type, id, safeUpdate);
+
+  // 우선순위 변경된 경우에만 재정렬
+  if (newPriority !== oldPriority) {
+    const reloadedList = await loadBannerData(type);
+    const priorityMap = [];
+    reloadedList
+      .sort((a, b) => a.priority - b.priority)
+      .forEach((item, idx) => {
+        if (item.priority !== idx + 1) {
+          priorityMap.push({ id: item.id, priority: idx + 1 });
+        }
+      });
+    if (priorityMap.length > 0) {
+      await updatePriorities(type, priorityMap);
+    }
+  }
+
+  // 업데이트 후 최신 데이터
+  const updatedList = await loadBannerData(type);
+  const updatedItem = updatedList.find(i => i.id === id);
 
   /* ===============================
     Slack 알림 (진짜 변경된 항목만)
@@ -226,7 +289,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
     Object.keys(LABEL_MAP).forEach((key) => {
       const before = oldItem[key] ?? "";
-      const after = list[index][key] ?? "";
+      const after = (updatedItem || {})[key] ?? "";
 
       if (String(before) !== String(after)) {
         const label = LABEL_MAP[key];
@@ -253,15 +316,12 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
      🔥 Slack 화면 전체 유저 갱신
   =============================== */
   try {
-    const uniqueUsers = [...new Set(list.map(i => i.createdBy))];
-    console.log("🔄 Slack 갱신 대상 유저:", uniqueUsers);
+    const uniqueUsers = [...new Set(updatedList.map(i => i.createdBy))];
 
     for (const userId of uniqueUsers) {
       try {
         await publishBannerMain(userId, type);
-        console.log(`✅ publishBannerMain 성공: ${userId}`);
         await publishMyReservations(userId, type);
-        console.log(`✅ publishMyReservations 성공: ${userId}`);
       } catch (innerErr) {
         console.log(`❌ Slack 갱신 실패 (${userId}):`, innerErr.message);
       }
@@ -286,15 +346,22 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
     return res.status(404).json({ error: "Not found" });
   }
 
-  const newList = list.filter((item) => item.id !== id);
+  // 🔥 단건 삭제 (빠름)
+  await deleteBannerItem(type, id);
 
+  // 우선순위 재정렬
+  const newList = await loadBannerData(type);
+  const priorityMap = [];
   newList
     .sort((a, b) => a.priority - b.priority)
     .forEach((item, idx) => {
-      item.priority = idx + 1;
+      if (item.priority !== idx + 1) {
+        priorityMap.push({ id: item.id, priority: idx + 1 });
+      }
     });
-
-  await saveBannerData(type, newList);
+  if (priorityMap.length > 0) {
+    await updatePriorities(type, priorityMap);
+  }
 
   /* ===============================
     Slack DM
@@ -530,7 +597,7 @@ async function publishMyReservations(userId, type) {
         },
       });
 
-    blocks.push({
+      blocks.push({
         type: "actions",
         elements: [
           { type: "button", text: { type: "plain_text", text: "✏️ 수정" }, action_id: "edit_my_reservation", value: `${type}:${item.id}` },
@@ -751,14 +818,23 @@ app.action("delete_reservation", async ({ ack, body }) => {
   const [type, id] = raw.split(":");
   if (!type || !id) return;
 
-  const list = await loadBannerData(type);
+  // 🔥 단건 삭제 (빠름)
+  await deleteBannerItem(type, id);
 
-  const newList = list.filter(item => item.id !== id);
+  // 우선순위 재정렬
+  const newList = await loadBannerData(type);
+  const priorityMap = [];
+  newList
+    .sort((a, b) => a.priority - b.priority)
+    .forEach((item, idx) => {
+      if (item.priority !== idx + 1) {
+        priorityMap.push({ id: item.id, priority: idx + 1 });
+      }
+    });
+  if (priorityMap.length > 0) {
+    await updatePriorities(type, priorityMap);
+  }
 
-  newList.sort((a, b) => a.priority - b.priority)
-    .forEach((item, idx) => { item.priority = idx + 1; });
-
-  await saveBannerData(type, newList);
   await publishMyReservations(userId, type);
 });
 
@@ -922,7 +998,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
         ? Math.max(...list.map((i) => i.priority || 0))
         : 0;
 
-    list.push({
+    const newItem = {
       id: Date.now().toString(),
       priority: maxPriority + 1,
       eventCode: v.event_code_block.event_code.value,
@@ -937,9 +1013,10 @@ Object.keys(BANNER_TYPES).forEach((type) => {
       linkData: v.link_data_block?.link_data?.value || "",
       createdBy: body.user.id,
       createdAt: new Date().toISOString(),
-    });
+    };
 
-    await saveBannerData(type, list);
+    // 🔥 단건 추가 (빠름)
+    await addBannerItem(type, newItem);
     await publishBannerMain(body.user.id, type);
   });
 });
@@ -950,26 +1027,21 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
   const { id, type } = JSON.parse(view.private_metadata);
   const v = view.state.values;
 
-  const list = await loadBannerData(type);
-  const index = list.findIndex((i) => i.id === id);
-  if (index === -1) return;
-
-  list[index] = {
-    ...list[index],
+  // 🔥 단건 수정 (빠름)
+  await updateBannerItem(type, id, {
     eventCode: v.event_code_block.event_code.value,
-    bannerType: v.banner_type_block.banner_type.selected_option?.value || list[index].bannerType,
-    mediaType: v.media_type_block.media_type.selected_option?.value || list[index].mediaType,
+    bannerType: v.banner_type_block.banner_type.selected_option?.value || "",
+    mediaType: v.media_type_block.media_type.selected_option?.value || "",
     banner: v.banner_block.banner.value,
     bannerDesc: v.banner_desc_block.banner_desc.value,
     startDate: v.start_date_block.start_date.selected_date,
     endDate: v.end_date_block.end_date.selected_date,
-    linkType: v.link_type_block.link_type.selected_option?.value || list[index].linkType,
+    linkType: v.link_type_block.link_type.selected_option?.value || "",
     linkUrl: v.link_url_block?.link_url?.value || "",
     linkData: v.link_data_block?.link_data?.value || "",
     updatedAt: new Date().toISOString(),
-  };
+  });
 
-  await saveBannerData(type, list);
   await publishBannerMain(body.user.id, type);
   await publishMyReservations(body.user.id, type);
 });
