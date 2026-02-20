@@ -1,5 +1,5 @@
 /**
- * Banner Schedule Slack App (Multi Banner Type Version + Image Cache)
+ * Banner Schedule Slack App (Multi Banner Type Version + MongoDB)
  */
 
 require("dotenv").config();
@@ -9,14 +9,13 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 
 /* ======================================================
- * 기본 설정
- * ====================================================== */
-
-/* ======================================================
  * MongoDB 연결
  * ====================================================== */
 
-mongoose.connect(process.env.MONGODB_URI)
+mongoose.connect(process.env.MONGODB_URI, {
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+})
   .then(() => console.log("✅ MongoDB 연결 성공"))
   .catch(err => console.log("❌ MongoDB 연결 실패:", err.message));
 
@@ -52,8 +51,6 @@ const BASE_URL =
 
 console.log("🌐 WEB BASE URL:", BASE_URL);
 
-
-
 /* ======================================================
  * 배너 타입 설정
  * ====================================================== */
@@ -65,9 +62,8 @@ const BANNER_TYPES = {
 };
 
 /* ======================================================
- * JSON 유틸
+ * MongoDB 유틸
  * ====================================================== */
-
 
 async function loadBannerData(type) {
   try {
@@ -176,30 +172,27 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   /* ===============================
      전체 필드 업데이트
   =============================== */
-
-  // 수정 코드 (보내온 값만 업데이트)
   const safeUpdate = {};
   const updateKeys = [
-      "eventCode", "bannerType", "mediaType", "banner",
-      "bannerDesc", "startDate", "endDate", "linkType",
-      "linkUrl", "linkData"
+    "eventCode", "bannerType", "mediaType", "banner",
+    "bannerDesc", "startDate", "endDate", "linkType",
+    "linkUrl", "linkData"
   ];
 
   updateKeys.forEach(key => {
-      if (updatedData[key] !== undefined) {
-          safeUpdate[key] = updatedData[key];
-      }
+    if (updatedData[key] !== undefined) {
+      safeUpdate[key] = updatedData[key];
+    }
   });
 
   list[index] = {
-      ...oldItem,
-      ...safeUpdate,
-      priority: newPriority,
-      updatedAt: new Date().toISOString(),
+    ...oldItem,
+    ...safeUpdate,
+    priority: newPriority,
+    updatedAt: new Date().toISOString(),
   };
 
-
-  saveBannerData(type, list);
+  await saveBannerData(type, list);
 
   /* ===============================
     Slack 알림 (진짜 변경된 항목만)
@@ -210,8 +203,8 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       startDate: "노출시작일",
       endDate: "노출종료일",
       banner: "배너명",
-      bannerContent: "배너내용",
-      bannerCategory: "배너구분",
+      bannerDesc: "배너내용",
+      bannerType: "배너구분",
       mediaType: "매체유형",
       linkType: "바로가기속성",
       linkUrl: "링크",
@@ -225,10 +218,8 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       const before = oldItem[key] ?? "";
       const after = list[index][key] ?? "";
 
-      // 🔥 문자열로 통일해서 비교
       if (String(before) !== String(after)) {
         const label = LABEL_MAP[key];
-
         changedDetails.push(
           `• ${label}\n   ${before || "-"} → ${after || "-"}`
         );
@@ -248,8 +239,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     console.log("Slack DM 실패:", e.message);
   }
 
-
-/* ===============================
+  /* ===============================
      🔥 Slack 화면 전체 유저 갱신
   =============================== */
   try {
@@ -264,7 +254,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
         console.log(`✅ publishMyReservations 성공: ${userId}`);
       } catch (innerErr) {
         console.log(`❌ Slack 갱신 실패 (${userId}):`, innerErr.message);
-        console.log("상세:", JSON.stringify(innerErr?.data || {}));
       }
     }
   } catch (e) {
@@ -273,7 +262,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
   res.json({ success: true });
 });
-
 
 /* ======================================================
  * 관리자 삭제 API
@@ -290,54 +278,49 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
 
   const newList = list.filter((item) => item.id !== id);
 
-  // 🔥 삭제 후 priority 재정렬
   newList
     .sort((a, b) => a.priority - b.priority)
     .forEach((item, idx) => {
       item.priority = idx + 1;
     });
 
-  saveBannerData(type, newList);
+  await saveBannerData(type, newList);
 
-    /* ===============================
-      Slack DM
-    =============================== */
-    try {
-      await app.client.chat.postMessage({
-        channel: target.createdBy,
-        text: `⚠️ 관리자에 의해 *"${target.banner}"* 게시물이 삭제되었습니다.`,
-      });
-    } catch (e) {
-      console.log("Slack DM 실패:", e.message);
+  /* ===============================
+    Slack DM
+  =============================== */
+  try {
+    await app.client.chat.postMessage({
+      channel: target.createdBy,
+      text: `⚠️ 관리자에 의해 *"${target.banner}"* 게시물이 삭제되었습니다.`,
+    });
+  } catch (e) {
+    console.log("Slack DM 실패:", e.message);
+  }
+
+  /* ===============================
+    🔥 Slack 화면 강제 갱신 (전체 유저)
+  =============================== */
+  try {
+    const allUsers = [...new Set(newList.map(i => i.createdBy))];
+    if (!allUsers.includes(target.createdBy)) {
+      allUsers.push(target.createdBy);
     }
 
-/* ===============================
-      🔥 Slack 화면 강제 갱신 (전체 유저)
-    =============================== */
-    try {
-      const allUsers = [...new Set(newList.map(i => i.createdBy))];
-      // 삭제된 유저도 포함
-      if (!allUsers.includes(target.createdBy)) {
-        allUsers.push(target.createdBy);
+    for (const userId of allUsers) {
+      try {
+        await publishBannerMain(userId, type);
+        await publishMyReservations(userId, type);
+      } catch (innerErr) {
+        console.log(`Slack 갱신 실패 (${userId}):`, innerErr.message);
       }
-
-      for (const userId of allUsers) {
-        try {
-          await publishBannerMain(userId, type);
-          await publishMyReservations(userId, type);
-        } catch (innerErr) {
-          console.log(`Slack 갱신 실패 (${userId}):`, innerErr.message);
-        }
-      }
-    } catch (e) {
-      console.log("Slack 화면 갱신 실패:", e.message);
     }
+  } catch (e) {
+    console.log("Slack 화면 갱신 실패:", e.message);
+  }
 
-    res.json({ success: true });
-
+  res.json({ success: true });
 });
-
-
 
 /* ======================================================
  * Slack App
@@ -349,7 +332,7 @@ const app = new App({
 });
 
 /* ======================================================
- * 날짜 유틸 (주간리스트 복구용)
+ * 날짜 유틸 (주간리스트용)
  * ====================================================== */
 
 function formatMMDD(date) {
@@ -372,7 +355,6 @@ function getThisWeekDates() {
     return d;
   });
 }
-
 
 /* ======================================================
  * 홈 화면 (3개 버튼)
@@ -404,14 +386,14 @@ async function publishHome(userId) {
 }
 
 /* ======================================================
- * 배너 메인 화면 (주간리스트 복구 + 이미지 상단)
+ * 배너 메인 화면 (주간리스트)
  * ====================================================== */
 
 async function publishBannerMain(userId, type) {
   const allData = await loadBannerData(type);
 
   const dates = getThisWeekDates();
-  const ranks = Array.from({ length: 7 }, (_, i) => i + 1); // 1~7 (5순위 + 대기2)
+  const ranks = Array.from({ length: 7 }, (_, i) => i + 1);
 
   const blocks = [
     {
@@ -421,8 +403,6 @@ async function publishBannerMain(userId, type) {
     { type: "divider" },
   ];
 
-
-  // ✅ 버튼들
   blocks.push({
     type: "actions",
     elements: [
@@ -458,12 +438,14 @@ async function publishBannerMain(userId, type) {
     text: { type: "plain_text", text: "📅 주간 스케줄" },
   });
 
-  // ✅ 주간 리스트 복구
   dates.forEach((date) => {
-    const yyyyMMdd = date.toISOString().slice(0, 10);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    const yyyyMMdd = `${y}-${m}-${d}`;
 
     const dayItems = allData.filter(
-      (d) => d.startDate <= yyyyMMdd && d.endDate >= yyyyMMdd
+      (item) => item.startDate <= yyyyMMdd && item.endDate >= yyyyMMdd
     );
 
     const sorted = [...dayItems].sort(
@@ -493,7 +475,7 @@ async function publishBannerMain(userId, type) {
 }
 
 /* ======================================================
- * 내 예약 보기 (복구: 날짜/부서/담당자 포함)
+ * 내 예약 보기
  * ====================================================== */
 
 async function publishMyReservations(userId, type) {
@@ -524,33 +506,31 @@ async function publishMyReservations(userId, type) {
     blocks.push({
       type: "section",
       text: { type: "mrkdwn", text: "등록한 예약이 없습니다." },
+    });
+  } else {
+    myList.forEach((item) => {
+      blocks.push({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text:
+            `*${item.banner}*\n` +
+            `${item.startDate} ~ ${item.endDate}\n` +
+            `> ${item.bannerDesc || ""}`,
+        },
       });
-    } else {
-      myList.forEach((item) => {
-        blocks.push({
-          type: "section",
-          text: {
-            type: "mrkdwn",
-            text:
-              `*${item.banner}*\n` +
-              `${item.startDate} ~ ${item.endDate}\n` +
-              `> ${item.bannerDesc || ""}`,
-          },
-        });
 
-
-        blocks.push({
-          type: "actions",
-          elements: [
-            { type: "button", text: { type: "plain_text", text: "✏️ 수정" }, action_id: "edit_my_reservation", value: item.id },
-            { type: "button", text: { type: "plain_text", text: "🗑 삭제" }, style: "danger", action_id: "delete_reservation", value: item.id },
-          ],
-        });
-
-        blocks.push({ type: "divider" });
+      blocks.push({
+        type: "actions",
+        elements: [
+          { type: "button", text: { type: "plain_text", text: "✏️ 수정" }, action_id: "edit_my_reservation", value: item.id },
+          { type: "button", text: { type: "plain_text", text: "🗑 삭제" }, style: "danger", action_id: "delete_reservation", value: item.id },
+        ],
       });
-    }
 
+      blocks.push({ type: "divider" });
+    });
+  }
 
   await app.client.views.publish({
     user_id: userId,
@@ -559,14 +539,13 @@ async function publishMyReservations(userId, type) {
 }
 
 /* ======================================================
- * 이벤트 핸들러 (✅ 홈버튼 클릭 안먹는 문제 해결 핵심!!)
+ * 이벤트 핸들러
  * ====================================================== */
 
 app.event("app_home_opened", async ({ event }) => {
   await publishHome(event.user);
 });
 
-// ✅ 홈 화면 3개 버튼 클릭 핸들러 (이게 빠져서 안 눌렸던 거)
 Object.keys(BANNER_TYPES).forEach((type) => {
   app.action(`open_banner_tab_${type}`, async ({ ack, body }) => {
     await ack();
@@ -574,18 +553,13 @@ Object.keys(BANNER_TYPES).forEach((type) => {
   });
 });
 
-// ✅ 내 예약 보기 버튼 핸들러 (🔥 이게 빠져있음)
 app.action("my_reservations", async ({ ack, body }) => {
   await ack();
-
   const type = body.actions?.[0]?.value;
   if (!type) return;
-
   await publishMyReservations(body.user.id, type);
 });
 
-
-// ✅ 내 예약 보기
 app.action("edit_my_reservation", async ({ ack, body, client }) => {
   await ack();
 
@@ -617,7 +591,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
       close: { type: "plain_text", text: "취소" },
       private_metadata: JSON.stringify({ id, type }),
       blocks: [
-
         {
           type: "input",
           block_id: "event_code_block",
@@ -628,7 +601,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             initial_value: item.eventCode || "",
           },
         },
-
         {
           type: "input",
           block_id: "banner_type_block",
@@ -655,7 +627,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             ],
           },
         },
-
         {
           type: "input",
           block_id: "media_type_block",
@@ -675,7 +646,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             ],
           },
         },
-
         {
           type: "input",
           block_id: "banner_block",
@@ -686,7 +656,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             initial_value: item.banner || "",
           },
         },
-
         {
           type: "input",
           block_id: "banner_desc_block",
@@ -698,7 +667,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             initial_value: item.bannerDesc || "",
           },
         },
-
         {
           type: "input",
           block_id: "start_date_block",
@@ -709,7 +677,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             initial_date: item.startDate,
           },
         },
-
         {
           type: "input",
           block_id: "end_date_block",
@@ -720,7 +687,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             initial_date: item.endDate,
           },
         },
-
         {
           type: "input",
           block_id: "link_type_block",
@@ -745,7 +711,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             ],
           },
         },
-
         {
           type: "input",
           block_id: "link_url_block",
@@ -757,7 +722,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             initial_value: item.linkUrl || "",
           },
         },
-
         {
           type: "input",
           block_id: "link_data_block",
@@ -774,8 +738,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
   });
 });
 
-
-
 app.action("delete_reservation", async ({ ack, body }) => {
   await ack();
 
@@ -784,14 +746,12 @@ app.action("delete_reservation", async ({ ack, body }) => {
   if (!id) return;
 
   let type = null;
-  let targetItem = null;
 
   for (const t of Object.keys(BANNER_TYPES)) {
     const list = await loadBannerData(t);
     const found = list.find(i => i.id === id);
     if (found) {
       type = t;
-      targetItem = found;
       break;
     }
   }
@@ -808,7 +768,6 @@ app.action("delete_reservation", async ({ ack, body }) => {
   await publishMyReservations(userId, type);
 });
 
-// ✅ 내예약 -> 돌아가기
 app.action("back_to_banner_main", async ({ ack, body }) => {
   await ack();
   const type = body.actions?.[0]?.value;
@@ -816,14 +775,13 @@ app.action("back_to_banner_main", async ({ ack, body }) => {
   await publishBannerMain(body.user.id, type);
 });
 
-// ✅ 이전화면 -> 홈
 app.action("go_home", async ({ ack, body }) => {
   await ack();
   await publishHome(body.user.id);
 });
 
 /* ======================================================
- * 등록 모달 (예전 양식 복구)
+ * 등록 모달
  * ====================================================== */
 
 Object.keys(BANNER_TYPES).forEach((type) => {
@@ -839,8 +797,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
         submit: { type: "plain_text", text: "등록" },
         close: { type: "plain_text", text: "취소" },
         blocks: [
-
-          // 🔹 타겟 이벤트코드
           {
             type: "input",
             block_id: "event_code_block",
@@ -848,14 +804,9 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             element: {
               type: "plain_text_input",
               action_id: "event_code",
-              placeholder: {
-                type: "plain_text",
-                text: "* ex) NMSV01",
-              },
+              placeholder: { type: "plain_text", text: "* ex) NMSV01" },
             },
           },
-
-          // 🔹 배너구분 (콤보박스)
           {
             type: "input",
             block_id: "banner_type_block",
@@ -863,10 +814,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             element: {
               type: "static_select",
               action_id: "banner_type",
-              placeholder: {
-                type: "plain_text",
-                text: "선택하세요",
-              },
+              placeholder: { type: "plain_text", text: "선택하세요" },
               options: [
                 { text: { type: "plain_text", text: "00. 디폴트" }, value: "00" },
                 { text: { type: "plain_text", text: "01. 상단배너" }, value: "01" },
@@ -877,8 +825,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
               ],
             },
           },
-
-          // 🔹 매체유형
           {
             type: "input",
             block_id: "media_type_block",
@@ -886,18 +832,13 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             element: {
               type: "static_select",
               action_id: "media_type",
-              placeholder: {
-                type: "plain_text",
-                text: "선택하세요",
-              },
+              placeholder: { type: "plain_text", text: "선택하세요" },
               options: [
                 { text: { type: "plain_text", text: "나무" }, value: "tree" },
                 { text: { type: "plain_text", text: "N2" }, value: "n2" },
               ],
             },
           },
-
-          // 🔹 배너명 (기존 유지)
           {
             type: "input",
             block_id: "banner_block",
@@ -907,8 +848,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
               action_id: "banner",
             },
           },
-
-          // 🔹 배너내용
           {
             type: "input",
             block_id: "banner_desc_block",
@@ -919,8 +858,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
               multiline: true,
             },
           },
-
-          // 🔹 노출시작 희망일자
           {
             type: "input",
             block_id: "start_date_block",
@@ -930,8 +867,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
               action_id: "start_date",
             },
           },
-
-          // 🔹 노출종료일자
           {
             type: "input",
             block_id: "end_date_block",
@@ -941,8 +876,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
               action_id: "end_date",
             },
           },
-
-          // 🔹 바로가기속성
           {
             type: "input",
             block_id: "link_type_block",
@@ -950,10 +883,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             element: {
               type: "static_select",
               action_id: "link_type",
-              placeholder: {
-                type: "plain_text",
-                text: "선택하세요",
-              },
+              placeholder: { type: "plain_text", text: "선택하세요" },
               options: [
                 { text: { type: "plain_text", text: "화면오픈" }, value: "screen" },
                 { text: { type: "plain_text", text: "팝업오픈" }, value: "popup" },
@@ -962,8 +892,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
               ],
             },
           },
-
-          // 🔹 바로가기링크
           {
             type: "input",
             block_id: "link_url_block",
@@ -974,8 +902,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
               action_id: "link_url",
             },
           },
-
-          // 🔹 바로가기링크데이터
           {
             type: "input",
             block_id: "link_data_block",
@@ -998,43 +924,33 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     const list = await loadBannerData(type);
 
     const maxPriority =
-    list.length > 0
-      ? Math.max(...list.map((i) => i.priority || 0))
-      : 0;
-
+      list.length > 0
+        ? Math.max(...list.map((i) => i.priority || 0))
+        : 0;
 
     list.push({
-    id: Date.now().toString(),
-        priority: maxPriority + 1, // ✅ 자동 우선순위 부여
-
-        eventCode: v.event_code_block.event_code.value,
-        bannerType:
-          v.banner_type_block.banner_type.selected_option?.value || "",
-        mediaType:
-          v.media_type_block.media_type.selected_option?.value || "",
-        banner: v.banner_block.banner.value,
-        bannerDesc: v.banner_desc_block.banner_desc.value,
-        startDate: v.start_date_block.start_date.selected_date,
-        endDate: v.end_date_block.end_date.selected_date,
-        linkType:
-          v.link_type_block.link_type.selected_option?.value || "",
-        linkUrl: v.link_url_block?.link_url?.value || "",
-        linkData: v.link_data_block?.link_data?.value || "",
-
-        createdBy: body.user.id,
-        createdAt: new Date().toISOString(),
+      id: Date.now().toString(),
+      priority: maxPriority + 1,
+      eventCode: v.event_code_block.event_code.value,
+      bannerType: v.banner_type_block.banner_type.selected_option?.value || "",
+      mediaType: v.media_type_block.media_type.selected_option?.value || "",
+      banner: v.banner_block.banner.value,
+      bannerDesc: v.banner_desc_block.banner_desc.value,
+      startDate: v.start_date_block.start_date.selected_date,
+      endDate: v.end_date_block.end_date.selected_date,
+      linkType: v.link_type_block.link_type.selected_option?.value || "",
+      linkUrl: v.link_url_block?.link_url?.value || "",
+      linkData: v.link_data_block?.link_data?.value || "",
+      createdBy: body.user.id,
+      createdAt: new Date().toISOString(),
     });
 
-
-    saveBannerData(type, list);
-
-    // ✅ 등록 후 이미지 갱신 시도 (실패해도 앱은 계속 동작)
-    // 🔥 Slack 화면 강제 갱신
+    await saveBannerData(type, list);
     await publishBannerMain(body.user.id, type);
   });
 });
 
-  app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
+app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
   await ack();
 
   const { id, type } = JSON.parse(view.private_metadata);
@@ -1045,29 +961,24 @@ Object.keys(BANNER_TYPES).forEach((type) => {
   if (index === -1) return;
 
   list[index] = {
-      ...list[index],
-      eventCode: v.event_code_block.event_code.value,
-      bannerType: v.banner_type_block.banner_type.selected_option?.value || list[index].bannerType,
-      mediaType: v.media_type_block.media_type.selected_option?.value || list[index].mediaType,
-      banner: v.banner_block.banner.value,
-      bannerDesc: v.banner_desc_block.banner_desc.value,
-      startDate: v.start_date_block.start_date.selected_date,
-      endDate: v.end_date_block.end_date.selected_date,
-      linkType: v.link_type_block.link_type.selected_option?.value || list[index].linkType,
-      linkUrl: v.link_url_block?.link_url?.value || "",
-      linkData: v.link_data_block?.link_data?.value || "",
-      updatedAt: new Date().toISOString(),
-    };
+    ...list[index],
+    eventCode: v.event_code_block.event_code.value,
+    bannerType: v.banner_type_block.banner_type.selected_option?.value || list[index].bannerType,
+    mediaType: v.media_type_block.media_type.selected_option?.value || list[index].mediaType,
+    banner: v.banner_block.banner.value,
+    bannerDesc: v.banner_desc_block.banner_desc.value,
+    startDate: v.start_date_block.start_date.selected_date,
+    endDate: v.end_date_block.end_date.selected_date,
+    linkType: v.link_type_block.link_type.selected_option?.value || list[index].linkType,
+    linkUrl: v.link_url_block?.link_url?.value || "",
+    linkData: v.link_data_block?.link_data?.value || "",
+    updatedAt: new Date().toISOString(),
+  };
 
-
-  saveBannerData(type, list);
-
-  // 🔥 Slack 화면 즉시 반영
+  await saveBannerData(type, list);
   await publishBannerMain(body.user.id, type);
   await publishMyReservations(body.user.id, type);
-
 });
-
 
 /* ======================================================
  * 서버 실행
