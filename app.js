@@ -903,6 +903,7 @@ app.view("admin_password_check", async ({ ack, view, body }) => {
     response_action: "update",
     view: {
       type: "modal",
+      callback_id: "admin_success",
       title: { type: "plain_text", text: "✅ 인증 성공" },
       blocks: [
         {
@@ -910,6 +911,7 @@ app.view("admin_password_check", async ({ ack, view, body }) => {
           text: { type: "mrkdwn", text: "✅ 인증 성공! 아래 버튼을 눌러주세요." },
           accessory: {
             type: "button",
+            action_id: "open_admin_page",
             text: { type: "plain_text", text: "📋 관리자 페이지 열기" },
             url: "https://nhbanner.vercel.app/admin",
           },
@@ -917,6 +919,10 @@ app.view("admin_password_check", async ({ ack, view, body }) => {
       ],
     },
   });
+});
+
+app.action("open_admin_page", async ({ ack }) => {
+  await ack();
 });
 
 
