@@ -8,7 +8,10 @@ import { useParams } from "next/navigation";
  * =============================== */
 
 function formatDate(date) {
-  return date.toISOString().slice(0, 10);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function getMonthMatrix(year, month) {
@@ -166,6 +169,7 @@ export default function BannerPage() {
                 className={`min-h-[140px] cursor-pointer border border-zinc-200 p-2 text-xs dark:border-zinc-800
                   ${isCurrentMonth ? "" : "bg-zinc-100 text-zinc-400 dark:bg-zinc-900"}
                   ${isToday ? "ring-2 ring-blue-400" : ""}
+                  ${selectedDate === dateStr ? "bg-yellow-100 ring-2 ring-yellow-400 dark:bg-yellow-900" : ""}
                 `}
               >
                 <div className="mb-1 text-xs font-semibold">

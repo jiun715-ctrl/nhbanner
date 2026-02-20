@@ -27,14 +27,24 @@ const BASE_URL =
 
 console.log("🌐 WEB BASE URL:", BASE_URL);
 
+// 수정 — 형식 검증 추가
 function loadCache() {
-  if (!fs.existsSync(CACHE_FILE)) {
-    fs.writeFileSync(
-      CACHE_FILE,
-      JSON.stringify({ home: "", floating: "", interest: "" }, null, 2)
-    );
-  }
-  return JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
+    if (!fs.existsSync(CACHE_FILE)) {
+        const empty = { home: "", floating: "", interest: "" };
+        fs.writeFileSync(CACHE_FILE, JSON.stringify(empty, null, 2));
+        return empty;
+    }
+
+    const raw = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
+
+    // 배열이거나 잘못된 형식이면 초기화
+    if (Array.isArray(raw) || !raw.home === undefined) {
+        const empty = { home: "", floating: "", interest: "" };
+        fs.writeFileSync(CACHE_FILE, JSON.stringify(empty, null, 2));
+        return empty;
+    }
+
+    return raw;
 }
 
 function saveCache(data) {
@@ -105,7 +115,14 @@ const receiver = new ExpressReceiver({
 });
 receiver.router.use(express.json());
 
-receiver.router.use(cors({ origin: BASE_URL }));
+receiver.router.use(cors({
+  origin: [
+    BASE_URL,
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "https://nhbanner.vercel.app",
+  ],
+}));
 
 receiver.router.post("/slack/events", (req, res) => {
   if (req.body.type === "url_verification") {
@@ -162,20 +179,25 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
      전체 필드 업데이트
   =============================== */
 
+  // 수정 코드 (보내온 값만 업데이트)
+  const safeUpdate = {};
+  const updateKeys = [
+      "eventCode", "bannerType", "mediaType", "banner",
+      "bannerDesc", "startDate", "endDate", "linkType",
+      "linkUrl", "linkData"
+  ];
+
+  updateKeys.forEach(key => {
+      if (updatedData[key] !== undefined) {
+          safeUpdate[key] = updatedData[key];
+      }
+  });
+
   list[index] = {
-    ...oldItem,
-    eventCode: updatedData.eventCode,
-    bannerType: updatedData.bannerType,
-    mediaType: updatedData.mediaType,
-    banner: updatedData.banner,
-    bannerDesc: updatedData.bannerDesc,
-    startDate: updatedData.startDate,
-    endDate: updatedData.endDate,
-    linkType: updatedData.linkType,
-    linkUrl: updatedData.linkUrl || "",
-    linkData: updatedData.linkData || "",
-    priority: newPriority,
-    updatedAt: new Date().toISOString(),
+      ...oldItem,
+      ...safeUpdate,
+      priority: newPriority,
+      updatedAt: new Date().toISOString(),
   };
 
 
@@ -694,6 +716,53 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
 
         {
           type: "input",
+          block_id: "banner_type_block",
+          label: { type: "plain_text", text: "배너구분" },
+          element: {
+            type: "static_select",
+            action_id: "banner_type",
+            initial_option: item.bannerType
+              ? {
+                  text: { type: "plain_text", text: {
+                    "00": "00. 디폴트", "01": "01. 상단배너", "02": "02. 서비스배너",
+                    "03": "03. 플로팅배너", "04": "04. 이벤트공지", "05": "05. 로그아웃배너"
+                  }[item.bannerType] || item.bannerType },
+                  value: item.bannerType,
+                }
+              : undefined,
+            options: [
+              { text: { type: "plain_text", text: "00. 디폴트" }, value: "00" },
+              { text: { type: "plain_text", text: "01. 상단배너" }, value: "01" },
+              { text: { type: "plain_text", text: "02. 서비스배너" }, value: "02" },
+              { text: { type: "plain_text", text: "03. 플로팅배너" }, value: "03" },
+              { text: { type: "plain_text", text: "04. 이벤트공지" }, value: "04" },
+              { text: { type: "plain_text", text: "05. 로그아웃배너" }, value: "05" },
+            ],
+          },
+        },
+
+        {
+          type: "input",
+          block_id: "media_type_block",
+          label: { type: "plain_text", text: "매체유형" },
+          element: {
+            type: "static_select",
+            action_id: "media_type",
+            initial_option: item.mediaType
+              ? {
+                  text: { type: "plain_text", text: item.mediaType === "tree" ? "나무" : "N2" },
+                  value: item.mediaType,
+                }
+              : undefined,
+            options: [
+              { text: { type: "plain_text", text: "나무" }, value: "tree" },
+              { text: { type: "plain_text", text: "N2" }, value: "n2" },
+            ],
+          },
+        },
+
+        {
+          type: "input",
           block_id: "banner_block",
           label: { type: "plain_text", text: "배너명" },
           element: {
@@ -736,6 +805,55 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             initial_date: item.endDate,
           },
         },
+
+        {
+          type: "input",
+          block_id: "link_type_block",
+          label: { type: "plain_text", text: "바로가기속성" },
+          element: {
+            type: "static_select",
+            action_id: "link_type",
+            initial_option: item.linkType
+              ? {
+                  text: { type: "plain_text", text: {
+                    "screen": "화면오픈", "popup": "팝업오픈",
+                    "frame_popup": "프레임팝업", "url": "URL"
+                  }[item.linkType] || item.linkType },
+                  value: item.linkType,
+                }
+              : undefined,
+            options: [
+              { text: { type: "plain_text", text: "화면오픈" }, value: "screen" },
+              { text: { type: "plain_text", text: "팝업오픈" }, value: "popup" },
+              { text: { type: "plain_text", text: "프레임팝업" }, value: "frame_popup" },
+              { text: { type: "plain_text", text: "URL" }, value: "url" },
+            ],
+          },
+        },
+
+        {
+          type: "input",
+          block_id: "link_url_block",
+          optional: true,
+          label: { type: "plain_text", text: "바로가기링크(선택사항)" },
+          element: {
+            type: "plain_text_input",
+            action_id: "link_url",
+            initial_value: item.linkUrl || "",
+          },
+        },
+
+        {
+          type: "input",
+          block_id: "link_data_block",
+          optional: true,
+          label: { type: "plain_text", text: "바로가기링크데이터(선택사항)" },
+          element: {
+            type: "plain_text_input",
+            action_id: "link_data",
+            initial_value: item.linkData || "",
+          },
+        },
       ],
     },
   });
@@ -752,14 +870,38 @@ app.action("delete_reservation", async ({ ack, body }) => {
   if (!id) return;
 
   // 어떤 타입에서 눌렀는지 알아야 함
-  const type = body.view?.blocks
-    ?.find(b => b.type === "header")
-    ?.text?.text
-    ?.includes("홈배너")
-      ? "home"
-      : body.view?.blocks?.[0]?.text?.text?.includes("플로팅")
-      ? "floating"
-      : "interest";
+  // 수정 — 모든 타입에서 실제 검색
+  app.action("delete_reservation", async ({ ack, body }) => {
+      await ack();
+
+      const id = body.actions?.[0]?.value;
+      const userId = body.user.id;
+      if (!id) return;
+
+      let type = null;
+      let targetItem = null;
+
+      for (const t of Object.keys(BANNER_TYPES)) {
+          const list = loadBannerData(t);
+          const found = list.find(i => i.id === id);
+          if (found) {
+              type = t;
+              targetItem = found;
+              break;
+          }
+      }
+
+      if (!type) return;
+
+      const list = loadBannerData(type);
+      const newList = list.filter(item => item.id !== id);
+
+      newList.sort((a, b) => a.priority - b.priority)
+          .forEach((item, idx) => { item.priority = idx + 1; });
+
+      saveBannerData(type, newList);
+      await publishMyReservations(userId, type);
+  });
 
   const list = loadBannerData(type);
   const newList = list.filter(item => item.id !== id);
@@ -1006,14 +1148,19 @@ Object.keys(BANNER_TYPES).forEach((type) => {
   if (index === -1) return;
 
   list[index] = {
-    ...list[index],
-    eventCode: v.event_code_block.event_code.value,
-    banner: v.banner_block.banner.value,
-    bannerDesc: v.banner_desc_block.banner_desc.value,
-    startDate: v.start_date_block.start_date.selected_date,
-    endDate: v.end_date_block.end_date.selected_date,
-    updatedAt: new Date().toISOString(),
-  };
+      ...list[index],
+      eventCode: v.event_code_block.event_code.value,
+      bannerType: v.banner_type_block.banner_type.selected_option?.value || list[index].bannerType,
+      mediaType: v.media_type_block.media_type.selected_option?.value || list[index].mediaType,
+      banner: v.banner_block.banner.value,
+      bannerDesc: v.banner_desc_block.banner_desc.value,
+      startDate: v.start_date_block.start_date.selected_date,
+      endDate: v.end_date_block.end_date.selected_date,
+      linkType: v.link_type_block.link_type.selected_option?.value || list[index].linkType,
+      linkUrl: v.link_url_block?.link_url?.value || "",
+      linkData: v.link_data_block?.link_data?.value || "",
+      updatedAt: new Date().toISOString(),
+    };
 
 
   saveBannerData(type, list);

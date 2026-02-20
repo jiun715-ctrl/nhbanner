@@ -60,7 +60,7 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState(null);
 
   useEffect(() => {
-    fetch("http://localhost:3001/api/homebanner")
+    fetch(`${API_BASE}/api/banner/home`)
       .then(res => res.json())
       .then(setBanners)
       .catch(console.error);

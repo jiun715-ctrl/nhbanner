@@ -115,12 +115,18 @@ export default function AdminPage() {
     setEditingItem(fixedItem);
 
     setEditForm({
-      eventCode: item.eventCode || "",
-      banner: item.banner || "",
-      startDate: item.startDate || "",
-      endDate: item.endDate || "",
-      priority: item.priority || 1,
-    });
+    eventCode: item.eventCode || "",
+    bannerType: item.bannerType || "",
+    mediaType: item.mediaType || "",
+    banner: item.banner || "",
+    bannerDesc: item.bannerDesc || "",
+    startDate: item.startDate || "",
+    endDate: item.endDate || "",
+    linkType: item.linkType || "",
+    linkUrl: item.linkUrl || "",
+    linkData: item.linkData || "",
+    priority: item.priority || 1,
+  });
   }
 
   /* ===============================
