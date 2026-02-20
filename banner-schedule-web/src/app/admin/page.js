@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
-const API_BASE = "https://nhbanner-slack.onrender.com";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "https://nhbanner-slack.onrender.com";
 
 const BANNER_TYPES = {
   home: "🏠 홈배너",
@@ -11,27 +11,26 @@ const BANNER_TYPES = {
   interest: "⭐ 관심그룹탭배너",
 };
 
-const modalStyle = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  width: "100%",
-  height: "100%",
-  background: "rgba(0,0,0,0.5)",
-  display: "flex",
-  justifyContent: "center",
-  alignItems: "center",
-};
+const BANNER_TYPE_OPTIONS = [
+  { value: "00", label: "00. 디폴트" },
+  { value: "01", label: "01. 상단배너" },
+  { value: "02", label: "02. 서비스배너" },
+  { value: "03", label: "03. 플로팅배너" },
+  { value: "04", label: "04. 이벤트공지" },
+  { value: "05", label: "05. 로그아웃배너" },
+];
 
-const modalContentStyle = {
-  background: "#fff",
-  padding: 20,
-  borderRadius: 8,
-  width: 450,
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-};
+const MEDIA_TYPE_OPTIONS = [
+  { value: "tree", label: "나무" },
+  { value: "n2", label: "N2" },
+];
+
+const LINK_TYPE_OPTIONS = [
+  { value: "screen", label: "화면오픈" },
+  { value: "popup", label: "팝업오픈" },
+  { value: "frame_popup", label: "프레임팝업" },
+  { value: "url", label: "URL" },
+];
 
 function getCurrentMonthYYYYMM() {
   const d = new Date();
@@ -42,318 +41,398 @@ function safeString(v) {
   return typeof v === "string" ? v : v == null ? "" : String(v);
 }
 
+function getLabel(options, value) {
+  const f = options.find((o) => o.value === value);
+  return f ? f.label : value || "—";
+}
+
 export default function AdminPage() {
   const [month, setMonth] = useState(getCurrentMonthYYYYMM());
   const [activeType, setActiveType] = useState("home");
-  const [allData, setAllData] = useState({
-    home: [],
-    floating: [],
-    interest: [],
-  });
+  const [allData, setAllData] = useState({ home: [], floating: [], interest: [] });
   const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  /* ===============================
-     데이터 로드
-  =============================== */
-  useEffect(() => {
-    async function run() {
-      try {
-        setLoadError("");
-        const results = {};
-
-        for (const type of Object.keys(BANNER_TYPES)) {
-          const res = await fetch(`${API_BASE}/api/banner/${type}`, {
-            cache: "no-store",
-          });
-
-          if (!res.ok) throw new Error(`${type} API 실패`);
-          results[type] = await res.json();
-        }
-
-        setAllData(results);
-      } catch (e) {
-        setLoadError(e?.message || "데이터 로드 실패");
+  async function loadAllData() {
+    try {
+      setLoadError("");
+      setLoading(true);
+      const results = {};
+      for (const type of Object.keys(BANNER_TYPES)) {
+        const res = await fetch(`${API_BASE}/api/banner/${type}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`${type} API 실패`);
+        results[type] = await res.json();
       }
+      setAllData(results);
+    } catch (e) {
+      setLoadError(e?.message || "데이터 로드 실패");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    run();
-  }, []);
+  useEffect(() => { loadAllData(); }, []);
 
-  /* ===============================
-     월 필터
-  =============================== */
   const filtered = useMemo(() => {
     const raw = allData[activeType] || [];
-
     return raw
       .filter((item) => safeString(item.startDate).startsWith(month))
       .sort((a, b) => (a.priority || 0) - (b.priority || 0))
-      .map((item, idx) => ({
-        no: idx + 1,
-        ...item,
-      }));
+      .map((item, idx) => ({ no: idx + 1, ...item }));
   }, [allData, activeType, month]);
 
-  /* ===============================
-     수정 시작
-  =============================== */
   function handleEdit(item) {
-    console.log("선택된 item:", item);
-
     const realId = item.id || item._id;
-
-    if (!realId) {
-      console.error("❌ id 없음:", item);
-      alert("이 항목은 id가 없습니다. 콘솔 확인하세요.");
-      return;
-    }
-
-    const fixedItem = { ...item, id: realId };
-
-    setEditingItem(fixedItem);
-
+    if (!realId) { alert("이 항목은 id가 없습니다."); return; }
+    setEditingItem({ ...item, id: realId });
     setEditForm({
-    eventCode: item.eventCode || "",
-    bannerType: item.bannerType || "",
-    mediaType: item.mediaType || "",
-    banner: item.banner || "",
-    bannerDesc: item.bannerDesc || "",
-    startDate: item.startDate || "",
-    endDate: item.endDate || "",
-    linkType: item.linkType || "",
-    linkUrl: item.linkUrl || "",
-    linkData: item.linkData || "",
-    priority: item.priority || 1,
-  });
+      eventCode: item.eventCode || "",
+      bannerType: item.bannerType || "",
+      mediaType: item.mediaType || "",
+      banner: item.banner || "",
+      bannerDesc: item.bannerDesc || "",
+      startDate: item.startDate || "",
+      endDate: item.endDate || "",
+      linkType: item.linkType || "",
+      linkUrl: item.linkUrl || "",
+      linkData: item.linkData || "",
+      priority: item.priority || 1,
+    });
   }
 
-  /* ===============================
-     수정 저장
-  =============================== */
   async function handleUpdate() {
-    if (!editingItem?.id) {
-      alert("ID가 없습니다.");
-      return;
-    }
-
-    console.log("수정 요청 ID:", editingItem.id);
-    console.log("보내는 데이터:", editForm);
-
+    if (!editingItem?.id) { alert("ID가 없습니다."); return; }
+    setSaving(true);
     try {
       const res = await fetch(
         `${API_BASE}/api/admin/update/${activeType}/${editingItem.id}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(editForm),
-        }
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editForm) }
       );
-
-      if (!res.ok) {
-        const errText = await res.text();
-        console.log("서버에러:", errText);
-        throw new Error("수정 실패");
-      }
-
-      alert("수정 완료");
-
-      const refreshed = await fetch(
-        `${API_BASE}/api/banner/${activeType}`,
-        { cache: "no-store" }
-      );
-
-      const data = await refreshed.json();
-
-      setAllData((prev) => ({
-        ...prev,
-        [activeType]: data,
-      }));
-
+      if (!res.ok) throw new Error("수정 실패");
       setEditingItem(null);
+      await loadAllData();
     } catch (e) {
       console.error(e);
       alert("수정 중 오류 발생");
+    } finally {
+      setSaving(false);
     }
   }
 
-  /* ===============================
-     삭제
-  =============================== */
   async function handleDelete(item) {
     const realId = item.id || item._id;
     if (!realId) return;
-
-    if (!confirm("정말 삭제하시겠습니까?")) return;
-
+    if (!confirm(`"${item.banner}" 항목을 삭제하시겠습니까?`)) return;
     try {
-      const res = await fetch(
-        `${API_BASE}/api/admin/delete/${activeType}/${realId}`,
-        { method: "DELETE" }
-      );
-
+      const res = await fetch(`${API_BASE}/api/admin/delete/${activeType}/${realId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("삭제 실패");
-
-      alert("삭제 완료");
-
-      const refreshed = await fetch(
-        `${API_BASE}/api/banner/${activeType}`,
-        { cache: "no-store" }
-      );
-
-      const data = await refreshed.json();
-
-      setAllData((prev) => ({
-        ...prev,
-        [activeType]: data,
-      }));
+      await loadAllData();
     } catch (e) {
       console.error(e);
       alert("삭제 중 오류 발생");
     }
   }
 
-  /* ===============================
-     엑셀 다운로드
-  =============================== */
   function downloadExcel() {
     const wb = XLSX.utils.book_new();
-
     const rows = filtered.map((item) => ({
       No: item.no,
-      EventCode: item.eventCode,
+      우선순위: item.priority,
+      이벤트코드: item.eventCode,
+      배너구분: getLabel(BANNER_TYPE_OPTIONS, item.bannerType),
+      매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
       배너명: item.banner,
+      배너내용: item.bannerDesc,
       노출시작: item.startDate,
       노출종료: item.endDate,
-      우선순위: item.priority,
-      CreatedAt: item.createdAt,
+      바로가기속성: getLabel(LINK_TYPE_OPTIONS, item.linkType),
+      바로가기링크: item.linkUrl,
+      링크데이터: item.linkData,
     }));
-
     const ws = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, BANNER_TYPES[activeType]);
-    XLSX.writeFile(wb, `banner_admin_${month}.xlsx`);
+    XLSX.writeFile(wb, `banner_admin_${activeType}_${month}.xlsx`);
   }
 
   return (
-    <main style={{ padding: 40, fontFamily: "sans-serif" }}>
-      <h1>🛠 배너 관리자 화면</h1>
+    <div style={{ minHeight: "100vh", background: "#f1f3f6", fontFamily: "'Segoe UI', 'Noto Sans KR', sans-serif" }}>
+      {/* ── 상단 헤더 ── */}
+      <header style={{
+        background: "linear-gradient(135deg, #1e293b 0%, #334155 100%)",
+        padding: "22px 32px",
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 26 }}>📋</span>
+          <div>
+            <h1 style={{ color: "#fff", fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: "-0.3px" }}>
+              배너 스케줄 관리
+            </h1>
+            <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, margin: 0, marginTop: 2 }}>Admin Panel</p>
+          </div>
+        </div>
+        <button onClick={loadAllData} style={{
+          background: "rgba(255,255,255,0.1)", color: "#fff", border: "1px solid rgba(255,255,255,0.2)",
+          padding: "8px 18px", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 500,
+        }}>🔄 새로고침</button>
+      </header>
 
-      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-        {Object.entries(BANNER_TYPES).map(([type, label]) => (
-          <button
-            key={type}
-            onClick={() => setActiveType(type)}
-            style={{
-              padding: "8px 14px",
-              background: activeType === type ? "#222" : "#eee",
-              color: activeType === type ? "#fff" : "#000",
-              border: "none",
-              borderRadius: 6,
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <main style={{ maxWidth: 1440, margin: "0 auto", padding: "24px 28px" }}>
+        {/* ── 탭 + 필터 ── */}
+        <div style={{
+          background: "#fff", borderRadius: 10, padding: "16px 20px", marginBottom: 16,
+          boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+          display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12,
+        }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            {Object.entries(BANNER_TYPES).map(([type, label]) => (
+              <button key={type} onClick={() => setActiveType(type)} style={{
+                padding: "9px 18px",
+                background: activeType === type ? "#1e293b" : "#f4f4f5",
+                color: activeType === type ? "#fff" : "#555",
+                border: activeType === type ? "none" : "1px solid #e4e4e7",
+                borderRadius: 6, cursor: "pointer", fontSize: 13,
+                fontWeight: activeType === type ? 600 : 400,
+              }}>{label}</button>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} style={{
+              padding: "7px 12px", border: "1px solid #ddd", borderRadius: 6, fontSize: 13, outline: "none",
+            }} />
+            <button onClick={downloadExcel} style={{
+              padding: "7px 14px", background: "#16a34a", color: "#fff", border: "none",
+              borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600,
+            }}>⬇ 엑셀</button>
+            <span style={{
+              fontSize: 12, color: "#888", background: "#f4f4f5", padding: "5px 12px", borderRadius: 20, fontWeight: 600,
+            }}>{filtered.length}건</span>
+          </div>
+        </div>
 
-      <div style={{ marginBottom: 20 }}>
-        <input
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-        />
-        <button onClick={downloadExcel}>⬇ 엑셀 다운로드</button>
-        <span> ({filtered.length}건)</span>
-      </div>
+        {loadError && (
+          <div style={{ background: "#fef2f2", color: "#dc2626", padding: "10px 16px", borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
+            ❌ {loadError}
+          </div>
+        )}
 
-      {loadError && <div style={{ color: "red" }}>❌ {loadError}</div>}
+        {/* ── 테이블 ── */}
+        <div style={{
+          background: "#fff", borderRadius: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden",
+        }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, whiteSpace: "nowrap" }}>
+              <thead>
+                <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
+                  {["수정","우선순위","No","이벤트코드","배너구분","매체유형","배너명","배너내용",
+                    "노출시작","노출종료","바로가기속성","바로가기링크","링크데이터","삭제"].map((h, i) => (
+                    <th key={i} style={{
+                      padding: "11px 12px",
+                      textAlign: [0,1,2,13].includes(i) ? "center" : "left",
+                      fontSize: 11, fontWeight: 700,
+                      color: i === 13 ? "#dc2626" : "#64748b",
+                      letterSpacing: "0.3px",
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={14} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
+                    ⏳ 데이터 로딩중...
+                  </td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={14} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
+                    등록된 배너가 없습니다
+                  </td></tr>
+                ) : filtered.map((item, idx) => (
+                  <tr key={item.id || item._id} style={{
+                    borderBottom: "1px solid #f1f5f9",
+                    background: idx % 2 === 0 ? "#fff" : "#f8fafc",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#eff6ff"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = idx % 2 === 0 ? "#fff" : "#f8fafc"; }}
+                  >
+                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                      <button onClick={() => handleEdit(item)} style={{
+                        background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 5,
+                        padding: "5px 10px", cursor: "pointer", fontSize: 13,
+                      }}>✏️</button>
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                      <PriorityBadge value={item.priority} />
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "center", color: "#94a3b8", fontWeight: 600 }}>{item.no}</td>
+                    <td style={tdS}>{item.eventCode || "—"}</td>
+                    <td style={tdS}>{getLabel(BANNER_TYPE_OPTIONS, item.bannerType)}</td>
+                    <td style={tdS}>{getLabel(MEDIA_TYPE_OPTIONS, item.mediaType)}</td>
+                    <td style={{ ...tdS, fontWeight: 600, color: "#1e293b" }}>{item.banner || "—"}</td>
+                    <td style={{ ...tdS, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {item.bannerDesc || "—"}
+                    </td>
+                    <td style={{ ...tdS, textAlign: "center" }}>{item.startDate || "—"}</td>
+                    <td style={{ ...tdS, textAlign: "center" }}>{item.endDate || "—"}</td>
+                    <td style={tdS}>{getLabel(LINK_TYPE_OPTIONS, item.linkType)}</td>
+                    <td style={{ ...tdS, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {item.linkUrl || "—"}
+                    </td>
+                    <td style={{ ...tdS, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {item.linkData || "—"}
+                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                      <button onClick={() => handleDelete(item)} style={{
+                        background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 5,
+                        padding: "5px 10px", cursor: "pointer", fontSize: 13,
+                      }}>🗑</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
 
-      <table border="1" cellPadding="8" style={{ width: "100%" }}>
-        <thead>
-          <tr>
-            <th>관리</th>
-            <th>No</th>
-            <th>EventCode</th>
-            <th>배너명</th>
-            <th>노출시작</th>
-            <th>노출종료</th>
-            <th>우선순위</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((item) => (
-            <tr key={item.id || item._id}>
-              <td>
-                <button onClick={() => handleEdit(item)}>수정</button>
-                <button
-                  onClick={() => handleDelete(item)}
-                  style={{ color: "red" }}
-                >
-                  삭제
-                </button>
-              </td>
-              <td>{item.no}</td>
-              <td>{item.eventCode}</td>
-              <td>{item.banner}</td>
-              <td>{item.startDate}</td>
-              <td>{item.endDate}</td>
-              <td>{item.priority}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
+      {/* ── 수정 모달 ── */}
       {editingItem && editForm && (
-        <div style={modalStyle}>
-          <div style={modalContentStyle}>
-            <h3>배너 수정</h3>
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+          background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center",
+          zIndex: 1000,
+        }} onClick={(e) => { if (e.target === e.currentTarget) setEditingItem(null); }}>
+          <div style={{
+            background: "#fff", borderRadius: 14, width: 500, maxHeight: "90vh", overflow: "auto",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+          }}>
+            <div style={{
+              background: "linear-gradient(135deg, #1e293b, #334155)",
+              padding: "18px 24px", borderRadius: "14px 14px 0 0",
+              color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>✏️ 배너 수정</h3>
+              <button onClick={() => setEditingItem(null)} style={{
+                background: "rgba(255,255,255,0.15)", border: "none", color: "#fff",
+                width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 15,
+              }}>✕</button>
+            </div>
 
-            <input
-              value={editForm.eventCode}
-              onChange={(e) =>
-                setEditForm({ ...editForm, eventCode: e.target.value })
-              }
-            />
+            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+              <Field label="타겟 이벤트코드">
+                <input style={inp} value={editForm.eventCode}
+                  onChange={(e) => setEditForm({ ...editForm, eventCode: e.target.value })} />
+              </Field>
 
-            <input
-              value={editForm.banner}
-              onChange={(e) =>
-                setEditForm({ ...editForm, banner: e.target.value })
-              }
-            />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <Field label="배너구분">
+                  <select style={inp} value={editForm.bannerType}
+                    onChange={(e) => setEditForm({ ...editForm, bannerType: e.target.value })}>
+                    <option value="">선택하세요</option>
+                    {BANNER_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </Field>
+                <Field label="매체유형">
+                  <select style={inp} value={editForm.mediaType}
+                    onChange={(e) => setEditForm({ ...editForm, mediaType: e.target.value })}>
+                    <option value="">선택하세요</option>
+                    {MEDIA_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </Field>
+              </div>
 
-            <input
-              type="date"
-              value={editForm.startDate}
-              onChange={(e) =>
-                setEditForm({ ...editForm, startDate: e.target.value })
-              }
-            />
+              <Field label="배너명">
+                <input style={inp} value={editForm.banner}
+                  onChange={(e) => setEditForm({ ...editForm, banner: e.target.value })} />
+              </Field>
 
-            <input
-              type="date"
-              value={editForm.endDate}
-              onChange={(e) =>
-                setEditForm({ ...editForm, endDate: e.target.value })
-              }
-            />
+              <Field label="배너내용">
+                <textarea style={{ ...inp, minHeight: 72, resize: "vertical" }} value={editForm.bannerDesc}
+                  onChange={(e) => setEditForm({ ...editForm, bannerDesc: e.target.value })} />
+              </Field>
 
-            <input
-              type="number"
-              value={editForm.priority}
-              onChange={(e) =>
-                setEditForm({ ...editForm, priority: Number(e.target.value) })
-              }
-            />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <Field label="노출시작 희망일자">
+                  <input type="date" style={inp} value={editForm.startDate}
+                    onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })} />
+                </Field>
+                <Field label="노출종료 희망일자">
+                  <input type="date" style={inp} value={editForm.endDate}
+                    onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })} />
+                </Field>
+              </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <button onClick={handleUpdate}>수정완료</button>
-              <button onClick={() => setEditingItem(null)}>취소</button>
+              <Field label="바로가기속성">
+                <select style={inp} value={editForm.linkType}
+                  onChange={(e) => setEditForm({ ...editForm, linkType: e.target.value })}>
+                  <option value="">선택하세요</option>
+                  {LINK_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </Field>
+
+              <Field label="바로가기링크 (선택사항)">
+                <input style={inp} value={editForm.linkUrl}
+                  onChange={(e) => setEditForm({ ...editForm, linkUrl: e.target.value })} />
+              </Field>
+
+              <Field label="바로가기링크데이터 (선택사항)">
+                <input style={inp} value={editForm.linkData}
+                  onChange={(e) => setEditForm({ ...editForm, linkData: e.target.value })} />
+              </Field>
+
+              <Field label="우선순위">
+                <input type="number" min={1} style={{ ...inp, width: 100 }} value={editForm.priority}
+                  onChange={(e) => setEditForm({ ...editForm, priority: Number(e.target.value) })} />
+              </Field>
+            </div>
+
+            <div style={{
+              padding: "14px 24px 20px", display: "flex", gap: 8, justifyContent: "flex-end",
+              borderTop: "1px solid #f1f5f9",
+            }}>
+              <button onClick={() => setEditingItem(null)} style={{
+                padding: "9px 20px", background: "#f4f4f5", color: "#555", border: "none",
+                borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 500,
+              }}>취소</button>
+              <button onClick={handleUpdate} disabled={saving} style={{
+                padding: "9px 24px",
+                background: saving ? "#94a3b8" : "#1e293b",
+                color: "#fff", border: "none", borderRadius: 6,
+                cursor: saving ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
+              }}>{saving ? "저장중..." : "수정완료"}</button>
             </div>
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }
+
+function Field({ label, children }) {
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 5 }}>{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function PriorityBadge({ value }) {
+  const c = { 1: "#16a34a", 2: "#2563eb", 3: "#d97706", 4: "#db2777", 5: "#7c3aed" }[value] || "#64748b";
+  return (
+    <span style={{
+      display: "inline-block", minWidth: 28, padding: "3px 8px", borderRadius: 20,
+      fontSize: 12, fontWeight: 700, textAlign: "center",
+      color: c, background: `${c}15`, border: `1px solid ${c}40`,
+    }}>{value}</span>
+  );
+}
+
+const tdS = { padding: "10px 12px", color: "#475569" };
+
+const inp = {
+  width: "100%", padding: "9px 12px", border: "1px solid #e2e8f0", borderRadius: 6,
+  fontSize: 14, outline: "none", fontFamily: "inherit",
+};
