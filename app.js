@@ -5,20 +5,13 @@
 require("dotenv").config();
 
 const { App, ExpressReceiver } = require("@slack/bolt");
-const fs = require("fs");
-const path = require("path");
 const cors = require("cors");
-const puppeteer = require("puppeteer");
 const mongoose = require("mongoose");
 
 /* ======================================================
  * 기본 설정
  * ====================================================== */
 
-const DATA_DIR = path.join(__dirname, "data");
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR);
-
-const CACHE_FILE = path.join(DATA_DIR, "calendarCache.json");
 /* ======================================================
  * MongoDB 연결
  * ====================================================== */
@@ -60,29 +53,6 @@ const BASE_URL =
 console.log("🌐 WEB BASE URL:", BASE_URL);
 
 
-// 수정 — 형식 검증 추가
-function loadCache() {
-    if (!fs.existsSync(CACHE_FILE)) {
-        const empty = { home: "", floating: "", interest: "" };
-        fs.writeFileSync(CACHE_FILE, JSON.stringify(empty, null, 2));
-        return empty;
-    }
-
-    const raw = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
-
-    // 배열이거나 잘못된 형식이면 초기화
-    if (Array.isArray(raw) || !raw.home === undefined) {
-        const empty = { home: "", floating: "", interest: "" };
-        fs.writeFileSync(CACHE_FILE, JSON.stringify(empty, null, 2));
-        return empty;
-    }
-
-    return raw;
-}
-
-function saveCache(data) {
-  fs.writeFileSync(CACHE_FILE, JSON.stringify(data, null, 2));
-}
 
 /* ======================================================
  * 배너 타입 설정
@@ -98,9 +68,6 @@ const BANNER_TYPES = {
  * JSON 유틸
  * ====================================================== */
 
-function getDataFile(type) {
-  return path.join(DATA_DIR, `${type}.json`);
-}
 
 async function loadBannerData(type) {
   try {
@@ -406,95 +373,6 @@ function getThisWeekDates() {
   });
 }
 
-/* ======================================================
- * 이미지 생성 + 캐시
- * ====================================================== */
-
-async function generateCalendarImage(type) {
-  const browser = await puppeteer.launch({ headless: "new" });
-  const page = await browser.newPage();
-
-  const targetUrl = `${BASE_URL}/banner/${type}`;
-  console.log("📸 캡처 URL:", targetUrl);
-
-  await page.goto(targetUrl, { waitUntil: "networkidle0" });
-
-  // 특정 요소가 로드됐는지 기다리기 (예: 캘린더 이미지의 셀렉터)
-  // 예를 들어, 캘린더 이미지에 id가 'calendar-image'라고 가정
-  // await page.waitForSelector('#calendar-image', { timeout: 5000 });
-
-  const screenshot = await page.screenshot({ fullPage: true });
-  await browser.close();
-
-  return screenshot;
-}
-
-async function regenerateCalendar(type) {
-  const imageBuffer = await generateCalendarImage(type);
-
-  const uploadResult = await app.client.files.uploadV2({
-    file: imageBuffer,
-    filename: `${type}_calendar.png`,
-  });
-
-  const uploadedFile = uploadResult?.files?.[0];
-  if (!uploadedFile?.id) {
-    console.log("❌ 파일 업로드 실패");
-    return "";
-  }
-
-  try {
-    await app.client.files.sharedPublicURL({
-      file: uploadedFile.id,
-    });
-  } catch (e) {
-    console.log("⚠️ sharedPublicURL 실패 (권한 문제 가능):", e?.data?.error || e?.message);
-  }
-
-  // 🔥 sharedPublicURL 반영 딜레이 방어 (최대 3회 재시도)
-  let fileInfo;
-  for (let i = 0; i < 3; i++) {
-    try {
-      const info = await app.client.files.info({
-        file: uploadedFile.id,
-      });
-      fileInfo = info.file;
-
-      if (fileInfo.public_url_shared) break;
-
-      console.log(`⏳ public_url_shared 대기중... (${i + 1}/3)`);
-      await new Promise((res) => setTimeout(res, 1000));
-    } catch (e) {
-      console.log("⚠️ files.info 실패:", e?.data?.error || e?.message);
-      return "";
-    }
-  }
-
-  if (!fileInfo?.public_url_shared) {
-    console.log("❌ public_url_shared 끝까지 없음 → 워크스페이스 public 공유 제한 가능성");
-    return "";
-  }
-
-// 🔥 실제 이미지 접근 URL 생성 (CDN 썸네일 사용)
-  let publicUrl = fileInfo.thumb_1024 
-    || fileInfo.thumb_720 
-    || fileInfo.thumb_480;
-
-  if (!publicUrl) {
-    console.log("❌ 썸네일 URL 없음");
-    return "";
-  }
-
-  console.log("🖼 생성된 이미지 URL:", publicUrl);
-
-  const cache = loadCache();
-  cache[type] = publicUrl;
-  saveCache(cache);
-
-  return publicUrl;
-
-}
-
 
 /* ======================================================
  * 홈 화면 (3개 버튼)
@@ -530,8 +408,6 @@ async function publishHome(userId) {
  * ====================================================== */
 
 async function publishBannerMain(userId, type) {
-  const cache = loadCache();
-  const calendarUrl = cache[type];
   const allData = await loadBannerData(type);
 
   const dates = getThisWeekDates();
@@ -545,15 +421,6 @@ async function publishBannerMain(userId, type) {
     { type: "divider" },
   ];
 
-  // ✅ 이미지가 있으면 상단에 표시
-  if (calendarUrl && calendarUrl.startsWith("http")) {
-    blocks.push({
-      type: "image",
-      image_url: calendarUrl,
-      alt_text: "월간 배너 일정",
-    });
-    blocks.push({ type: "divider" });
-  }
 
   // ✅ 버튼들
   blocks.push({
@@ -914,48 +781,30 @@ app.action("delete_reservation", async ({ ack, body }) => {
 
   const id = body.actions?.[0]?.value;
   const userId = body.user.id;
-
   if (!id) return;
 
-  // 어떤 타입에서 눌렀는지 알아야 함
-  // 수정 — 모든 타입에서 실제 검색
-  app.action("delete_reservation", async ({ ack, body }) => {
-      await ack();
+  let type = null;
+  let targetItem = null;
 
-      const id = body.actions?.[0]?.value;
-      const userId = body.user.id;
-      if (!id) return;
+  for (const t of Object.keys(BANNER_TYPES)) {
+    const list = await loadBannerData(t);
+    const found = list.find(i => i.id === id);
+    if (found) {
+      type = t;
+      targetItem = found;
+      break;
+    }
+  }
 
-      let type = null;
-      let targetItem = null;
-
-      for (const t of Object.keys(BANNER_TYPES)) {
-          const list = loadBannerData(t);
-          const found = list.find(i => i.id === id);
-          if (found) {
-              type = t;
-              targetItem = found;
-              break;
-          }
-      }
-
-      if (!type) return;
-
-      const list = await loadBannerData(type);
-      const newList = list.filter(item => item.id !== id);
-
-      newList.sort((a, b) => a.priority - b.priority)
-          .forEach((item, idx) => { item.priority = idx + 1; });
-
-      saveBannerData(type, newList);
-      await publishMyReservations(userId, type);
-  });
+  if (!type) return;
 
   const list = await loadBannerData(type);
   const newList = list.filter(item => item.id !== id);
 
-  saveBannerData(type, newList);
+  newList.sort((a, b) => a.priority - b.priority)
+    .forEach((item, idx) => { item.priority = idx + 1; });
 
+  await saveBannerData(type, newList);
   await publishMyReservations(userId, type);
 });
 
