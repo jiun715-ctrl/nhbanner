@@ -863,33 +863,7 @@ app.action("go_home", async ({ ack, body }) => {
 });
 
 
-app.action("open_admin_password", async ({ ack, body, client }) => {
-  await ack();
-  await client.views.open({
-    trigger_id: body.trigger_id,
-    view: {
-      type: "modal",
-      callback_id: "admin_password_check",
-      title: { type: "plain_text", text: "🔐 관리자 인증" },
-      submit: { type: "plain_text", text: "확인" },
-      close: { type: "plain_text", text: "취소" },
-      blocks: [
-        {
-          type: "input",
-          block_id: "pw_block",
-          label: { type: "plain_text", text: "비밀번호를 입력하세요" },
-          element: {
-            type: "plain_text_input",
-            action_id: "pw_input",
-            placeholder: { type: "plain_text", text: "비밀번호 입력" },
-          },
-        },
-      ],
-    },
-  });
-});
-
-app.view("admin_password_check", async ({ ack, view, body, client }) => {
+app.view("admin_password_check", async ({ ack, view, body }) => {
   const pw = view.state.values.pw_block.pw_input.value;
 
   if (pw !== "0099") {
@@ -902,21 +876,39 @@ app.view("admin_password_check", async ({ ack, view, body, client }) => {
 
   await ack();
 
-  await client.chat.postMessage({
-    channel: body.user.id,
-    text: "✅ 인증 성공! 아래 버튼을 클릭하세요.",
-    blocks: [
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: "✅ *관리자 인증 성공!*" },
-        accessory: {
-          type: "button",
-          text: { type: "plain_text", text: "📋 관리자 페이지 열기" },
-          url: "https://nhbanner.vercel.app/admin",
-          style: "primary",
+  // 홈 화면에 관리자 링크 버튼 표시
+  await app.client.views.publish({
+    user_id: body.user.id,
+    view: {
+      type: "home",
+      blocks: [
+        {
+          type: "header",
+          text: { type: "plain_text", text: "🔐 관리자 인증 성공" },
         },
-      },
-    ],
+        { type: "divider" },
+        {
+          type: "section",
+          text: { type: "mrkdwn", text: "아래 버튼을 클릭하면 관리자 페이지가 열립니다." },
+        },
+        {
+          type: "actions",
+          elements: [
+            {
+              type: "button",
+              text: { type: "plain_text", text: "📋 관리자 페이지 열기" },
+              url: `${BASE_URL}/admin`,
+              style: "primary",
+            },
+            {
+              type: "button",
+              text: { type: "plain_text", text: "⬅ 돌아가기" },
+              action_id: "go_home",
+            },
+          ],
+        },
+      ],
+    },
   });
 });
 
