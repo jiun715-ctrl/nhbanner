@@ -24,7 +24,9 @@ mongoose.connection.on("connected", () => console.log("✅ MongoDB 연결 성공
 mongoose.connection.on("error", (err) => console.log("❌ MongoDB 에러:", err.message));
 mongoose.connection.on("disconnected", () => {
   console.log("⚠️ MongoDB 연결 끊김, 재연결 시도...");
-  setTimeout(() => mongoose.connect(process.env.MONGODB_URI), 3000);
+  setTimeout(() => {
+    mongoose.connect(process.env.MONGODB_URI).catch(() => {});
+  }, 3000);
 });
 
 const bannerSchema = new mongoose.Schema({
