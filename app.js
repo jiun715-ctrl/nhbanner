@@ -13,11 +13,19 @@ const mongoose = require("mongoose");
  * ====================================================== */
 
 mongoose.connect(process.env.MONGODB_URI, {
-  serverSelectionTimeoutMS: 5000,
+  serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
-})
-  .then(() => console.log("✅ MongoDB 연결 성공"))
-  .catch(err => console.log("❌ MongoDB 연결 실패:", err.message));
+  maxPoolSize: 10,
+  retryWrites: true,
+  retryReads: true,
+});
+
+mongoose.connection.on("connected", () => console.log("✅ MongoDB 연결 성공"));
+mongoose.connection.on("error", (err) => console.log("❌ MongoDB 에러:", err.message));
+mongoose.connection.on("disconnected", () => {
+  console.log("⚠️ MongoDB 연결 끊김, 재연결 시도...");
+  setTimeout(() => mongoose.connect(process.env.MONGODB_URI), 3000);
+});
 
 const bannerSchema = new mongoose.Schema({
   id: String,
@@ -742,7 +750,7 @@ app.action("delete_reservation", async ({ ack, body }) => {
   if (!type || !id) return;
 
   const list = await loadBannerData(type);
-  
+
   const newList = list.filter(item => item.id !== id);
 
   newList.sort((a, b) => a.priority - b.priority)
