@@ -131,7 +131,7 @@ export default function Home() {
 
         {/* 요일 */}
         <div className="grid grid-cols-7 border border-zinc-200 text-center text-sm font-medium dark:border-zinc-800">
-          {["월", "화", "수", "목", "금", "토", "일"].map(d => (
+          {["토", "일", "월", "화", "수", "목", "금"].map(d => (
             <div
               key={d}
               className="border-b border-zinc-200 bg-zinc-100 py-2 dark:border-zinc-800 dark:bg-zinc-900"
