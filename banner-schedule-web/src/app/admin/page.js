@@ -78,8 +78,15 @@ export default function AdminPage() {
 
   const filtered = useMemo(() => {
     const raw = allData[activeType] || [];
+    const monthStart = `${month}-01`;
+    const monthEnd = `${month}-31`;
     return raw
-      .filter((item) => safeString(item.startDate).startsWith(month))
+      .filter((item) => {
+        const start = safeString(item.startDate);
+        const end = safeString(item.endDate);
+        if (!start || !end) return false;
+        return start <= monthEnd && end >= monthStart;
+      })
       .sort((a, b) => (a.priority || 0) - (b.priority || 0))
       .map((item, idx) => ({ no: idx + 1, ...item }));
   }, [allData, activeType, month]);

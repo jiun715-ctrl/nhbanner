@@ -19,10 +19,10 @@ function getMonthMatrix(year, month) {
   const lastDay = new Date(year, month + 1, 0);
 
   const start = new Date(firstDay);
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  start.setDate(start.getDate() - start.getDay());
 
   const end = new Date(lastDay);
-  end.setDate(end.getDate() + (6 - ((end.getDay() + 6) % 7)));
+  end.setDate(end.getDate() + (6 - end.getDay()));
 
   const days = [];
   const cur = new Date(start);
@@ -144,7 +144,7 @@ export default function BannerPage() {
 
         {/* 요일 */}
         <div className="grid grid-cols-7 border border-zinc-200 text-center text-sm font-medium dark:border-zinc-800">
-          {["월","화","수","목","금","토","일"].map(d => (
+          {["화","수","목","금","토","일","월"].map(d => (
             <div
               key={d}
 
