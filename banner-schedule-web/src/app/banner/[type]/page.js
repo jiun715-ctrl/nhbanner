@@ -144,7 +144,7 @@ export default function BannerPage() {
 
         {/* 요일 */}
         <div className="grid grid-cols-7 border border-zinc-200 text-center text-sm font-medium dark:border-zinc-800">
-          {["화","수","목","금","토","일","월"].map(d => (
+          {["일","월","화","수","목","금","토"].map(d => (
             <div
               key={d}
 

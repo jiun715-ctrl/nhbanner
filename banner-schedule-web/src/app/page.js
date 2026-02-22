@@ -7,7 +7,10 @@ import { useEffect, useMemo, useState } from "react";
  * =============================== */
 
 function formatDate(date) {
-  return date.toISOString().slice(0, 10);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
 
 function getMonthMatrix(year, month) {
@@ -15,10 +18,10 @@ function getMonthMatrix(year, month) {
   const lastDay = new Date(year, month + 1, 0);
 
   const start = new Date(firstDay);
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // 월요일 시작
+  start.setDate(start.getDate() - start.getDay()); // 일요일 시작
 
   const end = new Date(lastDay);
-  end.setDate(end.getDate() + (6 - ((end.getDay() + 6) % 7)));
+  end.setDate(end.getDate() + (6 - end.getDay()));
 
   const days = [];
   const cur = new Date(start);
@@ -131,7 +134,7 @@ export default function Home() {
 
         {/* 요일 */}
         <div className="grid grid-cols-7 border border-zinc-200 text-center text-sm font-medium dark:border-zinc-800">
-          {["토", "일", "월", "화", "수", "목", "금"].map(d => (
+          {["일", "월", "화", "수", "목", "금", "토"].map(d => (
             <div
               key={d}
               className="border-b border-zinc-200 bg-zinc-100 py-2 dark:border-zinc-800 dark:bg-zinc-900"
