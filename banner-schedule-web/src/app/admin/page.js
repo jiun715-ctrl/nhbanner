@@ -62,7 +62,7 @@ export default function AdminPage() {
       setLoading(true);
       const results = {};
       for (const type of Object.keys(BANNER_TYPES)) {
-        const res = await fetch(`${API_BASE}/api/banner/${type}`, { cache: "no-store" });
+        const res = await fetch(`${API_BASE}/api/banner/${type}?withUserName=true`, { cache: "no-store" });
         if (!res.ok) throw new Error(`${type} API 실패`);
         results[type] = await res.json();
       }
@@ -148,6 +148,7 @@ export default function AdminPage() {
     const rows = filtered.map((item) => ({
       No: item.no,
       우선순위: item.priority,
+      담당자: item.createdByName || "—",
       이벤트코드: item.eventCode,
       배너구분: getLabel(BANNER_TYPE_OPTIONS, item.bannerType),
       매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
@@ -235,13 +236,13 @@ export default function AdminPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, whiteSpace: "nowrap" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
-                  {["수정","우선순위","No","이벤트코드","배너구분","매체유형","배너명","배너내용",
+                  {["수정","우선순위","No","담당자","이벤트코드","배너구분","매체유형","배너명","배너내용",
                     "노출시작","노출종료","바로가기속성","바로가기링크","링크데이터","삭제"].map((h, i) => (
                     <th key={i} style={{
                       padding: "11px 12px",
-                      textAlign: [0,1,2,13].includes(i) ? "center" : "left",
+                      textAlign: [0,1,2,14].includes(i) ? "center" : "left",
                       fontSize: 11, fontWeight: 700,
-                      color: i === 13 ? "#dc2626" : "#64748b",
+                      color: i === 14 ? "#dc2626" : "#64748b",
                       letterSpacing: "0.3px",
                     }}>{h}</th>
                   ))}
@@ -249,11 +250,11 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={14} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
+                  <tr><td colSpan={15} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
                     ⏳ 데이터 로딩중...
                   </td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={14} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
+                  <tr><td colSpan={15} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
                     등록된 배너가 없습니다
                   </td></tr>
                 ) : filtered.map((item, idx) => (
@@ -274,6 +275,7 @@ export default function AdminPage() {
                       <PriorityBadge value={item.priority} />
                     </td>
                     <td style={{ padding: "10px 12px", textAlign: "center", color: "#94a3b8", fontWeight: 600 }}>{item.no}</td>
+                    <td style={{ ...tdS, fontWeight: 500, color: "#334155" }}>{item.createdByName || "—"}</td>
                     <td style={tdS}>{item.eventCode || "—"}</td>
                     <td style={tdS}>{getLabel(BANNER_TYPE_OPTIONS, item.bannerType)}</td>
                     <td style={tdS}>{getLabel(MEDIA_TYPE_OPTIONS, item.mediaType)}</td>

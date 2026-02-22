@@ -99,22 +99,6 @@ async function loadBannerData(type) {
   }
 }
 
-async function saveBannerData(type, data) {
-  try {
-    const model = BannerModel[type];
-    if (!model) return;
-
-    const cleanData = data.map(d => cleanDoc(d));
-
-    await model.deleteMany({});
-    if (cleanData.length > 0) {
-      await model.insertMany(cleanData);
-    }
-    console.log(`✅ saveBannerData(${type}) 저장 완료: ${cleanData.length}건`);
-  } catch (e) {
-    console.log(`❌ saveBannerData(${type}) 실패:`, e.message);
-  }
-}
 
 // 🔥 단건 추가 (전체 삭제+삽입 대신)
 async function addBannerItem(type, item) {
@@ -146,8 +130,12 @@ async function deleteBannerItem(type, id) {
   try {
     const model = BannerModel[type];
     if (!model) return;
-    await model.deleteOne({ id });
-    console.log(`✅ deleteBannerItem(${type}) 삭제 완료: ${id}`);
+    if (!id) {
+      console.log(`⚠️ deleteBannerItem(${type}) 차단: id가 없음!`);
+      return;
+    }
+    const result = await model.deleteOne({ id });
+    console.log(`✅ deleteBannerItem(${type}) 삭제 완료: ${id}, deleted: ${result.deletedCount}`);
   } catch (e) {
     console.log(`❌ deleteBannerItem(${type}) 실패:`, e.message);
   }
@@ -172,6 +160,7 @@ async function updatePriorities(type, priorityMap) {
     console.log(`❌ updatePriorities(${type}) 실패:`, e.message);
   }
 }
+
 
 /* ======================================================
  * Receiver
@@ -201,6 +190,18 @@ receiver.router.post("/slack/events", (req, res) => {
 
 receiver.router.get("/api/banner/:type", async (req, res) => {
   const data = await loadBannerData(req.params.type);
+
+  // admin 요청 시 유저명 포함
+  if (req.query.withUserName === "true") {
+    const enriched = await Promise.all(
+      data.map(async (item) => ({
+        ...item,
+        createdByName: await getSlackUserName(item.createdBy),
+      }))
+    );
+    return res.json(enriched);
+  }
+
   res.json(data);
 });
 
@@ -344,7 +345,7 @@ const oldItem = list[index];
     }
   }
 
-  
+
   /* ===============================
      🔥 Slack 화면 전체 유저 갱신
   =============================== */
@@ -440,6 +441,25 @@ const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   receiver,
 });
+
+/* ======================================================
+ * Slack 유저명 캐시
+ * ====================================================== */
+const userNameCache = {};
+
+async function getSlackUserName(userId) {
+  if (!userId) return "—";
+  if (userNameCache[userId]) return userNameCache[userId];
+  try {
+    const result = await app.client.users.info({ user: userId });
+    const name = result.user.profile.display_name || result.user.real_name || userId;
+    userNameCache[userId] = name;
+    return name;
+  } catch (e) {
+    console.log(`⚠️ 유저명 조회 실패 (${userId}):`, e.message);
+    return userId;
+  }
+}
 
 /* ======================================================
  * 날짜 유틸 (주간리스트용)
@@ -665,13 +685,14 @@ async function publishMyReservations(userId, type) {
  * ====================================================== */
 
 app.event("app_home_opened", async ({ event }) => {
-  await publishHome(event.user);
+  // ack는 Bolt가 자동 처리, publishHome은 백그라운드 실행
+  publishHome(event.user).catch(e => console.log("publishHome 실패:", e.message));
 });
 
 Object.keys(BANNER_TYPES).forEach((type) => {
   app.action(`open_banner_tab_${type}`, async ({ ack, body }) => {
     await ack();
-    await publishBannerMain(body.user.id, type);
+    publishBannerMain(body.user.id, type).catch(e => console.log("publishBannerMain 실패:", e.message));
   });
 });
 
