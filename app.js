@@ -481,7 +481,7 @@ async function publishHome(userId) {
       blocks: [
         {
           type: "header",
-          text: { type: "plain_text", text: "📢 배너 스케줄 관리" },
+          text: { type: "plain_text", text: "📢 배너 스케줄 등록하기" },
         },
         { type: "divider" },
         {
@@ -732,7 +732,7 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             initial_option: item.mediaType
               ? {
                   text: { type: "plain_text", text: {
-                    "common": "공통", "tree": "나무", "qv": "QV", "n2": "N2"
+                    "common": "공통", "tree": "나무", "n2": "N2"
                   }[item.mediaType] || item.mediaType },
                   value: item.mediaType,
                 }
@@ -740,7 +740,7 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             options: [
               { text: { type: "plain_text", text: "공통" }, value: "common" },
               { text: { type: "plain_text", text: "나무" }, value: "tree" },
-              { text: { type: "plain_text", text: "QV" }, value: "qv" },
+              { text: { type: "plain_text", text: "N2" }, value: "n2" },
             ],
           },
         },
@@ -987,8 +987,7 @@ app.action("open_admin_page", async ({ ack }) => {
 });
 
 /* ======================================================
- * 등록 모달 (eventCode 제거, bannerType 자동, mediaType 3개,
- *            placeholder 추가, linkUrl→이벤트이미지url, linkData 제거)
+ * 등록 모달 (매체유형: 공통/나무/N2)
  * ====================================================== */
 
 Object.keys(BANNER_TYPES).forEach((type) => {
@@ -1015,7 +1014,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
               options: [
                 { text: { type: "plain_text", text: "공통" }, value: "common" },
                 { text: { type: "plain_text", text: "나무" }, value: "tree" },
-                { text: { type: "plain_text", text: "QV" }, value: "qv" },
+                { text: { type: "plain_text", text: "N2" }, value: "n2" },
               ],
             },
           },

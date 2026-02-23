@@ -73,6 +73,13 @@ export default function BannerPage() {
       .catch(console.error);
   }, [type]);
 
+  /* ===============================
+   * 🔥 웹 캘린더용 필터: N2 제외 (common, tree만 표시)
+   * =============================== */
+
+  const calendarBanners = useMemo(() => {
+    return banners.filter(b => b.mediaType !== "n2");
+  }, [banners]);
 
   /* ===============================
    * 배너명 → 색상 매핑
@@ -82,7 +89,7 @@ export default function BannerPage() {
     const map = {};
     let idx = 0;
 
-    banners.forEach(b => {
+    calendarBanners.forEach(b => {
       if (!map[b.banner]) {
         map[b.banner] = COLOR_CLASSES[idx % COLOR_CLASSES.length];
         idx++;
@@ -90,7 +97,7 @@ export default function BannerPage() {
     });
 
     return map;
-  }, [banners]);
+  }, [calendarBanners]);
 
   const days = getMonthMatrix(year, month);
 
@@ -102,7 +109,7 @@ export default function BannerPage() {
   }
 
   const selectedDayItems = selectedDate
-    ? banners
+    ? calendarBanners
         .filter(b => b.startDate <= selectedDate && b.endDate >= selectedDate)
         .sort((a, b) => (a.priority || 99) - (b.priority || 99))
         .slice(0, 7)
@@ -147,7 +154,7 @@ export default function BannerPage() {
           {["일","월","화","수","목","금","토"].map(d => (
             <div
               key={d}
-
+              className="border border-zinc-200 bg-zinc-100 py-2 dark:border-zinc-800 dark:bg-zinc-900"
             >
               {d}
             </div>
@@ -161,7 +168,7 @@ export default function BannerPage() {
             const isCurrentMonth = date.getMonth() === month;
             const isToday = dateStr === todayStr;
 
-            const dayItems = banners
+            const dayItems = calendarBanners
               .filter(b => b.startDate <= dateStr && b.endDate >= dateStr)
               .sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
