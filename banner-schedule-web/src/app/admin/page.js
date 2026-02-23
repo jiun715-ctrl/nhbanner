@@ -50,6 +50,15 @@ const PURPOSE_OPTIONS = [
   { value: "etc", label: "기타" },
 ];
 
+const DESIRED_TAB_OPTIONS = [
+  { value: "realtime_best", label: "실시간BEST" },
+  { value: "expert_stock", label: "투자고수종목" },
+  { value: "domestic_rank", label: "국내종목순위" },
+  { value: "foreign_rank", label: "해외종목순위" },
+  { value: "etf_rank", label: "ETF순위" },
+  { value: "etc", label: "기타(그 외 빈 구좌)" },
+];
+
 function getCurrentMonthYYYYMM() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -73,6 +82,8 @@ export default function AdminPage() {
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  const isInterest = activeType === "interest";
 
   async function loadAllData() {
     try {
@@ -106,13 +117,28 @@ export default function AdminPage() {
         return start <= monthEnd && end >= monthStart;
       })
       .sort((a, b) => {
-        // 🔥 N2(priority null)는 맨 뒤로
         const pa = a.priority ?? 9999;
         const pb = b.priority ?? 9999;
         return pa - pb;
       })
       .map((item, idx) => ({ no: idx + 1, ...item }));
   }, [allData, activeType, month]);
+
+  /* 🔥 테이블 헤더 동적 생성 */
+  const tableHeaders = useMemo(() => {
+    const base = [
+      "수정","우선순위","No","담당자","배너구분","매체유형","배너명","배너내용",
+      "상품구분","목적",
+    ];
+    if (isInterest) {
+      base.push("희망 탭", "기타 희망 탭");
+    }
+    base.push("노출시작","노출종료","바로가기속성","이벤트이미지url","삭제");
+    return base;
+  }, [isInterest]);
+
+  const totalCols = tableHeaders.length;
+  const deleteColIdx = totalCols - 1;
 
   function handleEdit(item) {
     const realId = item.id || item._id;
@@ -125,6 +151,8 @@ export default function AdminPage() {
       bannerDesc: item.bannerDesc || "",
       productType: item.productType || "",
       purpose: item.purpose || "",
+      desiredTab: item.desiredTab || "",
+      desiredTabCustom: item.desiredTabCustom || "",
       startDate: item.startDate || "",
       endDate: item.endDate || "",
       linkType: item.linkType || "",
@@ -156,7 +184,7 @@ export default function AdminPage() {
   async function handleDelete(item) {
     const realId = item.id || item._id;
     if (!realId) return;
-    if (!confirm(`"${item.banner}" 항목을 삭제하시겠습니까?`)) return;
+    if (!confirm(`"${item.banner || "관심그룹탭"}" 항목을 삭제하시겠습니까?`)) return;
     try {
       const res = await fetch(`${API_BASE}/api/admin/delete/${activeType}/${realId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("삭제 실패");
@@ -169,21 +197,28 @@ export default function AdminPage() {
 
   function downloadExcel() {
     const wb = XLSX.utils.book_new();
-    const rows = filtered.map((item) => ({
-      No: item.no,
-      우선순위: item.priority ?? "—",
-      담당자: item.createdByName || "—",
-      배너구분: getLabel(BANNER_TYPE_OPTIONS, item.bannerType),
-      매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
-      배너명: item.banner,
-      배너내용: item.bannerDesc,
-      상품구분: getLabel(PRODUCT_TYPE_OPTIONS, item.productType),
-      목적: getLabel(PURPOSE_OPTIONS, item.purpose),
-      노출시작: item.startDate,
-      노출종료: item.endDate,
-      바로가기속성: getLabel(LINK_TYPE_OPTIONS, item.linkType),
-      이벤트이미지url: item.linkUrl,
-    }));
+    const rows = filtered.map((item) => {
+      const row = {
+        No: item.no,
+        우선순위: item.priority ?? "—",
+        담당자: item.createdByName || "—",
+        배너구분: getLabel(BANNER_TYPE_OPTIONS, item.bannerType),
+        매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
+        배너명: item.banner,
+        배너내용: item.bannerDesc,
+        상품구분: getLabel(PRODUCT_TYPE_OPTIONS, item.productType),
+        목적: getLabel(PURPOSE_OPTIONS, item.purpose),
+      };
+      if (isInterest) {
+        row["희망 탭"] = getLabel(DESIRED_TAB_OPTIONS, item.desiredTab);
+        row["기타 희망 탭"] = item.desiredTabCustom || "";
+      }
+      row["노출시작"] = item.startDate;
+      row["노출종료"] = item.endDate;
+      row["바로가기속성"] = getLabel(LINK_TYPE_OPTIONS, item.linkType);
+      row["이벤트이미지url"] = item.linkUrl;
+      return row;
+    });
     const ws = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, BANNER_TYPES[activeType]);
     XLSX.writeFile(wb, `banner_admin_${activeType}_${month}.xlsx`);
@@ -260,13 +295,12 @@ export default function AdminPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, whiteSpace: "nowrap" }}>
               <thead>
                 <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
-                  {["수정","우선순위","No","담당자","배너구분","매체유형","배너명","배너내용",
-                    "상품구분","목적","노출시작","노출종료","바로가기속성","이벤트이미지url","삭제"].map((h, i) => (
+                  {tableHeaders.map((h, i) => (
                     <th key={i} style={{
                       padding: "11px 12px",
-                      textAlign: [0,1,2,14].includes(i) ? "center" : "left",
+                      textAlign: [0,1,2,deleteColIdx].includes(i) ? "center" : "left",
                       fontSize: 11, fontWeight: 700,
-                      color: i === 14 ? "#dc2626" : "#64748b",
+                      color: i === deleteColIdx ? "#dc2626" : "#64748b",
                       letterSpacing: "0.3px",
                     }}>{h}</th>
                   ))}
@@ -274,11 +308,11 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={15} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
+                  <tr><td colSpan={totalCols} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
                     ⏳ 데이터 로딩중...
                   </td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={15} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
+                  <tr><td colSpan={totalCols} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
                     등록된 배너가 없습니다
                   </td></tr>
                 ) : filtered.map((item, idx) => (
@@ -308,6 +342,16 @@ export default function AdminPage() {
                     </td>
                     <td style={tdS}>{getLabel(PRODUCT_TYPE_OPTIONS, item.productType)}</td>
                     <td style={tdS}>{getLabel(PURPOSE_OPTIONS, item.purpose)}</td>
+                    {isInterest && (
+                      <>
+                        <td style={{ ...tdS, fontWeight: 500, color: "#7c3aed" }}>
+                          {getLabel(DESIRED_TAB_OPTIONS, item.desiredTab)}
+                        </td>
+                        <td style={{ ...tdS, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {item.desiredTabCustom || "—"}
+                        </td>
+                      </>
+                    )}
                     <td style={{ ...tdS, textAlign: "center" }}>{item.startDate || "—"}</td>
                     <td style={{ ...tdS, textAlign: "center" }}>{item.endDate || "—"}</td>
                     <td style={tdS}>{getLabel(LINK_TYPE_OPTIONS, item.linkType)}</td>
@@ -396,6 +440,24 @@ export default function AdminPage() {
                 </Field>
               </div>
 
+              {/* 🔥 interest: 희망 탭 + 기타 희망 탭 */}
+              {isInterest && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <Field label="희망 탭">
+                    <select style={inp} value={editForm.desiredTab}
+                      onChange={(e) => setEditForm({ ...editForm, desiredTab: e.target.value })}>
+                      <option value="">선택하세요</option>
+                      {DESIRED_TAB_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="기타 희망 탭">
+                    <input style={inp} value={editForm.desiredTabCustom}
+                      onChange={(e) => setEditForm({ ...editForm, desiredTabCustom: e.target.value })}
+                      placeholder="기타 선택 시 입력" />
+                  </Field>
+                </div>
+              )}
+
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="노출시작 희망일자">
                   <input type="date" style={inp} value={editForm.startDate}
@@ -458,7 +520,6 @@ function Field({ label, children }) {
 }
 
 function PriorityBadge({ value }) {
-  // 🔥 N2 (priority null/undefined) → "—" 표시
   if (value == null) {
     return (
       <span style={{

@@ -50,11 +50,18 @@ const COLOR_CLASSES = [
   "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
 ];
 
-/* 🔥 관심종목탭 전용 슬롯 라벨 */
-const INTEREST_RANK_LABELS = [
-  "실시간BEST", "투자고수종목", "국내종목순위",
-  "해외종목순위", "ETF순위", "기타(그 외 빈 구좌)"
+/* 🔥 관심종목탭 전용: 희망 탭 옵션 & 슬롯 매핑 */
+const INTEREST_TAB_OPTIONS = [
+  { value: "realtime_best", label: "실시간BEST" },
+  { value: "expert_stock", label: "투자고수종목" },
+  { value: "domestic_rank", label: "국내종목순위" },
+  { value: "foreign_rank", label: "해외종목순위" },
+  { value: "etf_rank", label: "ETF순위" },
+  { value: "etc", label: "기타(그 외 빈 구좌)" },
 ];
+
+const INTEREST_RANK_LABELS = INTEREST_TAB_OPTIONS.map(o => o.label);
+const INTEREST_SLOT_VALUES = INTEREST_TAB_OPTIONS.map(o => o.value);
 
 export default function BannerPage() {
   const { type } = useParams();
@@ -91,31 +98,39 @@ export default function BannerPage() {
    * 배너명 → 색상 매핑
    * =============================== */
 
+  const isInterest = type === "interest";
+
   const bannerColorMap = useMemo(() => {
     const map = {};
     let idx = 0;
 
     calendarBanners.forEach(b => {
-      const displayKey = b.banner || `slot_${b.priority || idx}`;
-      if (!map[displayKey]) {
-        map[displayKey] = COLOR_CLASSES[idx % COLOR_CLASSES.length];
+      const key = b.banner || (isInterest && b.desiredTab ? b.desiredTab : `slot_${b.priority || idx}`);
+      if (!map[key]) {
+        map[key] = COLOR_CLASSES[idx % COLOR_CLASSES.length];
         idx++;
       }
     });
 
     return map;
-  }, [calendarBanners]);
+  }, [calendarBanners, isInterest]);
 
   function getDisplayName(item) {
     if (item.banner) return item.banner;
-    if (type === "interest" && item.priority) {
-      return INTEREST_RANK_LABELS[item.priority - 1] || `슬롯${item.priority}`;
+    if (type === "interest") {
+      if (item.desiredTab === "etc" && item.desiredTabCustom) {
+        return item.desiredTabCustom;
+      }
+      const tabOpt = INTEREST_TAB_OPTIONS.find(o => o.value === item.desiredTab);
+      return tabOpt ? tabOpt.label : "등록됨";
     }
     return "등록됨";
   }
 
   function getColorKey(item) {
-    return item.banner || `slot_${item.priority || 0}`;
+    if (item.banner) return item.banner;
+    if (type === "interest" && item.desiredTab) return item.desiredTab;
+    return `slot_${item.priority || 0}`;
   }
 
   const days = getMonthMatrix(year, month);
@@ -127,13 +142,19 @@ export default function BannerPage() {
     setSelectedDate(null);
   }
 
-  const isInterest = type === "interest";
   const maxSlots = isInterest ? 6 : 7;
 
   const selectedDayItems = selectedDate
     ? calendarBanners
         .filter(b => b.startDate <= selectedDate && b.endDate >= selectedDate)
-        .sort((a, b) => (a.priority || 99) - (b.priority || 99))
+        .sort((a, b) => {
+          if (isInterest) {
+            const ia = INTEREST_SLOT_VALUES.indexOf(a.desiredTab);
+            const ib = INTEREST_SLOT_VALUES.indexOf(b.desiredTab);
+            return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+          }
+          return (a.priority || 99) - (b.priority || 99);
+        })
         .slice(0, maxSlots)
     : [];
 
@@ -192,7 +213,14 @@ export default function BannerPage() {
 
             const dayItems = calendarBanners
               .filter(b => b.startDate <= dateStr && b.endDate >= dateStr)
-              .sort((a, b) => (a.priority || 99) - (b.priority || 99));
+              .sort((a, b) => {
+                if (isInterest) {
+                  const ia = INTEREST_SLOT_VALUES.indexOf(a.desiredTab);
+                  const ib = INTEREST_SLOT_VALUES.indexOf(b.desiredTab);
+                  return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+                }
+                return (a.priority || 99) - (b.priority || 99);
+              });
 
             const visible = dayItems.slice(0, isInterest ? 6 : 5);
             const hasWaiting = isInterest ? false : dayItems.length > 5;
@@ -249,7 +277,8 @@ export default function BannerPage() {
                   const isWaiting = isInterest ? false : index >= 5;
                   let rankLabel;
                   if (isInterest) {
-                    rankLabel = INTEREST_RANK_LABELS[index] || `슬롯${index + 1}`;
+                    const tabOpt = INTEREST_TAB_OPTIONS.find(o => o.value === item.desiredTab);
+                    rankLabel = tabOpt ? tabOpt.label : `슬롯${index + 1}`;
                   } else {
                     rankLabel = isWaiting
                       ? `대기 ${index - 4}`

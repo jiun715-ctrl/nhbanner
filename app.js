@@ -37,6 +37,8 @@ const bannerSchema = new mongoose.Schema({
   bannerDesc: String,
   productType: String,
   purpose: String,
+  desiredTab: String,
+  desiredTabCustom: String,
   startDate: String,
   endDate: String,
   linkType: String,
@@ -76,11 +78,24 @@ const BANNER_TYPE_AUTO = {
   interest: "99",
 };
 
-/* 🔥 관심종목탭 전용 슬롯 라벨 (6슬롯) */
-const INTEREST_RANK_LABELS = [
-  "실시간BEST", "투자고수종목", "국내종목순위",
-  "해외종목순위", "ETF순위", "기타(그 외 빈 구좌)"
+/* 🔥 관심종목탭 전용: 희망 탭 옵션 & 슬롯 매핑 */
+const INTEREST_TAB_OPTIONS = [
+  { value: "realtime_best", label: "실시간BEST" },
+  { value: "expert_stock", label: "투자고수종목" },
+  { value: "domestic_rank", label: "국내종목순위" },
+  { value: "foreign_rank", label: "해외종목순위" },
+  { value: "etf_rank", label: "ETF순위" },
+  { value: "etc", label: "기타(그 외 빈 구좌)" },
 ];
+
+const INTEREST_RANK_LABELS = INTEREST_TAB_OPTIONS.map(o => o.label);
+
+const INTEREST_SLOT_VALUES = INTEREST_TAB_OPTIONS.map(o => o.value);
+
+function getDesiredTabLabel(value) {
+  const found = INTEREST_TAB_OPTIONS.find(o => o.value === value);
+  return found ? found.label : value || "—";
+}
 
 /* ======================================================
  * MongoDB 유틸
@@ -257,7 +272,9 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   const safeUpdate = {};
   const updateKeys = [
     "eventCode", "bannerType", "mediaType", "banner",
-    "bannerDesc", "productType", "purpose", "startDate", "endDate", "linkType",
+    "bannerDesc", "productType", "purpose",
+    "desiredTab", "desiredTabCustom",
+    "startDate", "endDate", "linkType",
     "linkUrl", "linkData"
   ];
 
@@ -285,6 +302,8 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       bannerDesc: "배너내용",
       productType: "상품구분",
       purpose: "목적",
+      desiredTab: "희망 탭",
+      desiredTabCustom: "기타 희망 탭",
       bannerType: "배너구분",
       mediaType: "매체유형",
       linkType: "바로가기속성",
@@ -429,7 +448,7 @@ async function getSlackUserName(userId) {
 }
 
 /* ======================================================
- * 날짜 유틸 (주간리스트용)
+ * 날짜 유틸
  * ====================================================== */
 
 function formatMMDD(date) {
@@ -452,7 +471,7 @@ function getThisWeekDates() {
 }
 
 /* ======================================================
- * 홈 화면 (4개 버튼)
+ * 홈 화면
  * ====================================================== */
 
 async function publishHome(userId) {
@@ -500,7 +519,8 @@ async function publishHome(userId) {
 }
 
 /* ======================================================
- * 배너 메인 화면 (주간리스트) — N2 제외, interest 전용 라벨
+ * 배너 메인 화면 (주간리스트)
+ * 🔥 interest: desiredTab 기준 슬롯 매칭 (6슬롯)
  * ====================================================== */
 
 async function publishBannerMain(userId, type) {
@@ -509,8 +529,6 @@ async function publishBannerMain(userId, type) {
 
   const isInterest = type === "interest";
   const dates = getThisWeekDates();
-  const maxRanks = isInterest ? 6 : 7;
-  const ranks = Array.from({ length: maxRanks }, (_, i) => i + 1);
 
   const blocks = [
     {
@@ -559,21 +577,30 @@ async function publishBannerMain(userId, type) {
       (item) => item.startDate <= yyyyMMdd && item.endDate >= yyyyMMdd
     );
 
-    const sorted = [...dayItems].sort(
-      (a, b) => (a.priority || 0) - (b.priority || 0)
-    );
+    let lines;
 
-    const lines = ranks.map((rank) => {
-      const found = sorted[rank - 1];
-      let label;
-      if (isInterest) {
-        label = INTEREST_RANK_LABELS[rank - 1] || `슬롯${rank}`;
-      } else {
-        label = rank <= 5 ? `${rank}순위` : `대기 ${rank - 5}`;
-      }
-      const displayName = found ? (found.banner || "등록됨") : "—";
-      return `${label}  ${displayName}`;
-    });
+    if (isInterest) {
+      // 🔥 desiredTab 기준 슬롯 매칭
+      lines = INTEREST_TAB_OPTIONS.map((tab) => {
+        const found = dayItems.find(item => item.desiredTab === tab.value);
+        const displayName = found
+          ? (tab.value === "etc" && found.desiredTabCustom
+              ? found.desiredTabCustom
+              : "등록됨")
+          : "—";
+        return `${tab.label}  ${displayName}`;
+      });
+    } else {
+      const sorted = [...dayItems].sort(
+        (a, b) => (a.priority || 0) - (b.priority || 0)
+      );
+      const ranks = Array.from({ length: 7 }, (_, i) => i + 1);
+      lines = ranks.map((rank) => {
+        const found = sorted[rank - 1];
+        const label = rank <= 5 ? `${rank}순위` : `대기 ${rank - 5}`;
+        return found ? `${label}  ${found.banner}` : `${label} —`;
+      });
+    }
 
     blocks.push({
       type: "section",
@@ -592,7 +619,7 @@ async function publishBannerMain(userId, type) {
 }
 
 /* ======================================================
- * 내 예약 보기 (전체/탭별 겸용)
+ * 내 예약 보기
  * ====================================================== */
 
 async function publishMyReservations(userId, type) {
@@ -636,10 +663,14 @@ async function publishMyReservations(userId, type) {
       const mediaLabel = { "common": "공통", "tree": "나무", "n2": "N2" }[item.mediaType] || item.mediaType || "";
       const priorityText = item.mediaType === "n2" ? "우선순위: —" : `우선순위: ${item.priority || "—"}`;
 
-      // 🔥 interest는 배너명 대신 슬롯 라벨 표시
+      // 🔥 interest: 희망 탭 라벨 표시
       let displayName = item.banner;
-      if (!displayName && item._type === "interest" && item.priority) {
-        displayName = INTEREST_RANK_LABELS[(item.priority - 1)] || "관심그룹탭";
+      if (item._type === "interest") {
+        const tabLabel = getDesiredTabLabel(item.desiredTab);
+        const customSuffix = item.desiredTab === "etc" && item.desiredTabCustom
+          ? ` (${item.desiredTabCustom})`
+          : "";
+        displayName = `${tabLabel}${customSuffix}`;
       }
       displayName = displayName || "—";
 
@@ -708,7 +739,7 @@ function buildModalBlocks(type, item) {
   const isEdit = !!item;
   const blocks = [];
 
-  // 매체유형 (공통)
+  // 매체유형
   const mediaTypeElement = {
     type: "static_select",
     action_id: "media_type",
@@ -765,7 +796,7 @@ function buildModalBlocks(type, item) {
     });
   }
 
-  // 상품구분 (공통)
+  // 상품구분
   const ptElement = {
     type: "static_select",
     action_id: "product_type",
@@ -798,7 +829,7 @@ function buildModalBlocks(type, item) {
     element: ptElement,
   });
 
-  // 목적 (공통)
+  // 목적
   const purposeElement = {
     type: "static_select",
     action_id: "purpose",
@@ -828,6 +859,47 @@ function buildModalBlocks(type, item) {
     element: purposeElement,
   });
 
+  // 🔥 희망 탭 (interest만)
+  if (isInterest) {
+    const dtElement = {
+      type: "static_select",
+      action_id: "desired_tab",
+      options: INTEREST_TAB_OPTIONS.map(o => ({
+        text: { type: "plain_text", text: o.label },
+        value: o.value,
+      })),
+    };
+    if (isEdit && item.desiredTab) {
+      const dtLabel = getDesiredTabLabel(item.desiredTab);
+      dtElement.initial_option = {
+        text: { type: "plain_text", text: dtLabel },
+        value: item.desiredTab,
+      };
+    } else {
+      dtElement.placeholder = { type: "plain_text", text: "선택하세요" };
+    }
+    blocks.push({
+      type: "input",
+      block_id: "desired_tab_block",
+      label: { type: "plain_text", text: "희망 탭" },
+      element: dtElement,
+    });
+
+    // 기타 선택 시 희망 탭 입력
+    blocks.push({
+      type: "input",
+      block_id: "desired_tab_custom_block",
+      optional: true,
+      label: { type: "plain_text", text: "기타 선택 시 희망 탭 입력" },
+      element: {
+        type: "plain_text_input",
+        action_id: "desired_tab_custom",
+        ...(isEdit ? { initial_value: item.desiredTabCustom || "" } : {}),
+        placeholder: { type: "plain_text", text: "기타 선택 시 희망 탭 이름을 입력하세요" },
+      },
+    });
+  }
+
   // 노출시작 희망일자
   blocks.push({
     type: "input",
@@ -852,7 +924,7 @@ function buildModalBlocks(type, item) {
     },
   });
 
-  // 바로가기속성 (interest: 2개, 그 외: 4개)
+  // 바로가기속성
   const linkOptions = isInterest
     ? [
         { text: { type: "plain_text", text: "URL[배너형]" }, value: "url" },
@@ -891,7 +963,7 @@ function buildModalBlocks(type, item) {
     element: ltElement,
   });
 
-  // 이벤트이미지url (공통)
+  // 이벤트이미지url
   blocks.push({
     type: "input",
     block_id: "link_url_block",
@@ -1078,6 +1150,8 @@ Object.keys(BANNER_TYPES).forEach((type) => {
       bannerDesc: isInterest ? "" : (v.banner_desc_block?.banner_desc?.value || ""),
       productType: v.product_type_block.product_type.selected_option?.value || "",
       purpose: v.purpose_block.purpose.selected_option?.value || "",
+      desiredTab: isInterest ? (v.desired_tab_block?.desired_tab?.selected_option?.value || "") : "",
+      desiredTabCustom: isInterest ? (v.desired_tab_custom_block?.desired_tab_custom?.value || "") : "",
       startDate: v.start_date_block.start_date.selected_date,
       endDate: v.end_date_block.end_date.selected_date,
       linkType: v.link_type_block.link_type.selected_option?.value || "",
@@ -1118,8 +1192,10 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
     updatedAt: new Date().toISOString(),
   };
 
-  // interest는 배너명/배너내용 없음
-  if (!isInterest) {
+  if (isInterest) {
+    updates.desiredTab = v.desired_tab_block?.desired_tab?.selected_option?.value || "";
+    updates.desiredTabCustom = v.desired_tab_custom_block?.desired_tab_custom?.value || "";
+  } else {
     updates.banner = v.banner_block?.banner?.value || "";
     updates.bannerDesc = v.banner_desc_block?.banner_desc?.value || "";
   }
