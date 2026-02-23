@@ -71,6 +71,13 @@ const BANNER_TYPES = {
   interest: "⭐ 관심그룹탭배너",
 };
 
+// 🔥 타입별 배너구분 자동 매핑
+const BANNER_TYPE_AUTO = {
+  home: "01",
+  floating: "03",
+  interest: "00",
+};
+
 /* ======================================================
  * MongoDB 유틸
  * ====================================================== */
@@ -101,8 +108,7 @@ async function loadBannerData(type) {
   }
 }
 
-
-// 🔥 단건 추가 (전체 삭제+삽입 대신)
+// 🔥 단건 추가
 async function addBannerItem(type, item) {
   try {
     const model = BannerModel[type];
@@ -115,7 +121,7 @@ async function addBannerItem(type, item) {
   }
 }
 
-// 🔥 단건 수정 (전체 삭제+삽입 대신)
+// 🔥 단건 수정
 async function updateBannerItem(type, id, updates) {
   try {
     const model = BannerModel[type];
@@ -163,7 +169,6 @@ async function updatePriorities(type, priorityMap) {
   }
 }
 
-
 /* ======================================================
  * Receiver
  * ====================================================== */
@@ -193,7 +198,6 @@ receiver.router.post("/slack/events", (req, res) => {
 receiver.router.get("/api/banner/:type", async (req, res) => {
   const data = await loadBannerData(req.params.type);
 
-  // admin 요청 시 유저명 포함
   if (req.query.withUserName === "true") {
     const enriched = await Promise.all(
       data.map(async (item) => ({
@@ -224,7 +228,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   const oldItem = list[index];
   const oldPriority = oldItem.priority || 1;
 
-  // 🔥 모든 아이템의 기존 우선순위 저장 (swap 감지용)
   const oldPriorityMap = {};
   list.forEach(item => { oldPriorityMap[item.id] = item.priority; });
   const newPriority =
@@ -232,9 +235,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       ? Number(updatedData.priority)
       : oldPriority;
 
-  /* ===============================
-     전체 필드 업데이트
-  =============================== */
   const safeUpdate = {};
   const updateKeys = [
     "eventCode", "bannerType", "mediaType", "banner",
@@ -251,10 +251,8 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   safeUpdate.priority = newPriority;
   safeUpdate.updatedAt = new Date().toISOString();
 
-  // 🔥 단건 업데이트 (빠름)
   await updateBannerItem(type, id, safeUpdate);
 
-  // 우선순위 변경된 경우에만 재정렬
   if (newPriority !== oldPriority) {
     const reloadedList = await loadBannerData(type);
     const priorityMap = [];
@@ -275,13 +273,9 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     }
   }
 
-  // 업데이트 후 최신 데이터
   const updatedList = await loadBannerData(type);
   const updatedItem = updatedList.find(i => i.id === id);
 
-  /* ===============================
-    Slack 알림 (진짜 변경된 항목만)
-  =============================== */
   try {
     const LABEL_MAP = {
       priority: "우선순위",
@@ -294,7 +288,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       bannerType: "배너구분",
       mediaType: "매체유형",
       linkType: "바로가기속성",
-      linkUrl: "링크",
+      linkUrl: "이벤트이미지url",
       linkData: "링크데이터",
       eventCode: "이벤트코드",
     };
@@ -326,9 +320,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     console.log("Slack DM 실패:", e.message);
   }
 
-  /* ===============================
-     🔥 우선순위 밀린 다른 유저에게 DM
-  =============================== */
   if (newPriority !== oldPriority) {
     try {
       for (const item of updatedList) {
@@ -349,10 +340,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     }
   }
 
-
-  /* ===============================
-     🔥 Slack 화면 전체 유저 갱신
-  =============================== */
   try {
     const uniqueUsers = [...new Set(updatedList.map(i => i.createdBy))];
 
@@ -384,10 +371,8 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
     return res.status(404).json({ error: "Not found" });
   }
 
-  // 🔥 단건 삭제 (빠름)
   await deleteBannerItem(type, id);
 
-  // 우선순위 재정렬
   const newList = await loadBannerData(type);
   const priorityMap = [];
   newList
@@ -401,9 +386,6 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
     await updatePriorities(type, priorityMap);
   }
 
-  /* ===============================
-    Slack DM
-  =============================== */
   try {
     await app.client.chat.postMessage({
       channel: target.createdBy,
@@ -413,9 +395,6 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
     console.log("Slack DM 실패:", e.message);
   }
 
-  /* ===============================
-    🔥 Slack 화면 강제 갱신 (전체 유저)
-  =============================== */
   try {
     const allUsers = [...new Set(newList.map(i => i.createdBy))];
     if (!allUsers.includes(target.createdBy)) {
@@ -491,7 +470,7 @@ function getThisWeekDates() {
 }
 
 /* ======================================================
- * 홈 화면 (3개 버튼)
+ * 홈 화면 (4개 버튼)
  * ====================================================== */
 
 async function publishHome(userId) {
@@ -622,11 +601,10 @@ async function publishBannerMain(userId, type) {
 }
 
 /* ======================================================
- * 내 예약 보기
+ * 내 예약 보기 (전체/탭별 겸용)
  * ====================================================== */
 
 async function publishMyReservations(userId, type) {
-  // type이 있으면 해당 탭만, 없으면 전체
   const targetTypes = type ? [type] : Object.keys(BANNER_TYPES);
 
   const allMyItems = [];
@@ -698,7 +676,6 @@ async function publishMyReservations(userId, type) {
  * ====================================================== */
 
 app.event("app_home_opened", async ({ event }) => {
-  // ack는 Bolt가 자동 처리, publishHome은 백그라운드 실행
   publishHome(event.user).catch(e => console.log("publishHome 실패:", e.message));
 });
 
@@ -713,7 +690,7 @@ app.action("my_reservations", async ({ ack, body }) => {
   await ack();
   const type = body.actions?.[0]?.value;
   if (!type) return;
-  await publishMyReservations(body.user.id, type);
+  publishMyReservations(body.user.id, type).catch(e => console.log("publishMyReservations 실패:", e.message));
 });
 
 app.action("my_reservations_all", async ({ ack, body }) => {
@@ -747,42 +724,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
       blocks: [
         {
           type: "input",
-          block_id: "event_code_block",
-          label: { type: "plain_text", text: "타겟 이벤트코드" },
-          element: {
-            type: "plain_text_input",
-            action_id: "event_code",
-            initial_value: item.eventCode || "",
-          },
-        },
-        {
-          type: "input",
-          block_id: "banner_type_block",
-          label: { type: "plain_text", text: "배너구분" },
-          element: {
-            type: "static_select",
-            action_id: "banner_type",
-            initial_option: item.bannerType
-              ? {
-                  text: { type: "plain_text", text: {
-                    "00": "00. 디폴트", "01": "01. 상단배너", "02": "02. 서비스배너",
-                    "03": "03. 플로팅배너", "04": "04. 이벤트공지", "05": "05. 로그아웃배너"
-                  }[item.bannerType] || item.bannerType },
-                  value: item.bannerType,
-                }
-              : undefined,
-            options: [
-              { text: { type: "plain_text", text: "00. 디폴트" }, value: "00" },
-              { text: { type: "plain_text", text: "01. 상단배너" }, value: "01" },
-              { text: { type: "plain_text", text: "02. 서비스배너" }, value: "02" },
-              { text: { type: "plain_text", text: "03. 플로팅배너" }, value: "03" },
-              { text: { type: "plain_text", text: "04. 이벤트공지" }, value: "04" },
-              { text: { type: "plain_text", text: "05. 로그아웃배너" }, value: "05" },
-            ],
-          },
-        },
-        {
-          type: "input",
           block_id: "media_type_block",
           label: { type: "plain_text", text: "매체유형" },
           element: {
@@ -790,13 +731,16 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             action_id: "media_type",
             initial_option: item.mediaType
               ? {
-                  text: { type: "plain_text", text: item.mediaType === "tree" ? "나무" : "N2" },
+                  text: { type: "plain_text", text: {
+                    "common": "공통", "tree": "나무", "qv": "QV", "n2": "N2"
+                  }[item.mediaType] || item.mediaType },
                   value: item.mediaType,
                 }
               : undefined,
             options: [
+              { text: { type: "plain_text", text: "공통" }, value: "common" },
               { text: { type: "plain_text", text: "나무" }, value: "tree" },
-              { text: { type: "plain_text", text: "N2" }, value: "n2" },
+              { text: { type: "plain_text", text: "QV" }, value: "qv" },
             ],
           },
         },
@@ -808,6 +752,7 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             type: "plain_text_input",
             action_id: "banner",
             initial_value: item.banner || "",
+            placeholder: { type: "plain_text", text: "플로팅 배너인 경우 반드시 줄바꿈 심볼을 넣어주세요. ex. 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
           },
         },
         {
@@ -819,6 +764,7 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
             action_id: "banner_desc",
             multiline: true,
             initial_value: item.bannerDesc || "",
+            placeholder: { type: "plain_text", text: "이제 환전 걱정할 필요 없어요" },
           },
         },
         {
@@ -922,29 +868,18 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
           type: "input",
           block_id: "link_url_block",
           optional: true,
-          label: { type: "plain_text", text: "바로가기링크(선택사항)" },
+          label: { type: "plain_text", text: "이벤트이미지url" },
           element: {
             type: "plain_text_input",
             action_id: "link_url",
             initial_value: item.linkUrl || "",
-          },
-        },
-        {
-          type: "input",
-          block_id: "link_data_block",
-          optional: true,
-          label: { type: "plain_text", text: "바로가기링크데이터(선택사항)" },
-          element: {
-            type: "plain_text_input",
-            action_id: "link_data",
-            initial_value: item.linkData || "",
+            placeholder: { type: "plain_text", text: "노출 4일 전 알림이 갈 예정입니다. 알림을 받으실 경우 실제 링크를 입력해주세요." },
           },
         },
       ],
     },
   });
 });
-
 
 app.action("delete_reservation", async ({ ack, body }) => {
   await ack();
@@ -956,36 +891,36 @@ app.action("delete_reservation", async ({ ack, body }) => {
   const [type, id] = raw.split(":");
   if (!type || !id) return;
 
-  // 🔥 단건 삭제 (빠름)
-  await deleteBannerItem(type, id);
+  (async () => {
+    await deleteBannerItem(type, id);
 
-  // 우선순위 재정렬
-  const newList = await loadBannerData(type);
-  const priorityMap = [];
-  newList
-    .sort((a, b) => a.priority - b.priority)
-    .forEach((item, idx) => {
-      if (item.priority !== idx + 1) {
-        priorityMap.push({ id: item.id, priority: idx + 1 });
-      }
-    });
-  if (priorityMap.length > 0) {
-    await updatePriorities(type, priorityMap);
-  }
+    const newList = await loadBannerData(type);
+    const priorityMap = [];
+    newList
+      .sort((a, b) => a.priority - b.priority)
+      .forEach((item, idx) => {
+        if (item.priority !== idx + 1) {
+          priorityMap.push({ id: item.id, priority: idx + 1 });
+        }
+      });
+    if (priorityMap.length > 0) {
+      await updatePriorities(type, priorityMap);
+    }
 
-  await publishMyReservations(userId, type);
+    await publishMyReservations(userId, type);
+  })().catch(e => console.log("delete_reservation 실패:", e.message));
 });
 
 app.action("back_to_banner_main", async ({ ack, body }) => {
   await ack();
   const type = body.actions?.[0]?.value;
   if (!type) return;
-  await publishBannerMain(body.user.id, type);
+  publishBannerMain(body.user.id, type).catch(e => console.log("publishBannerMain 실패:", e.message));
 });
 
 app.action("go_home", async ({ ack, body }) => {
   await ack();
-  await publishHome(body.user.id);
+  publishHome(body.user.id).catch(e => console.log("publishHome 실패:", e.message));
 });
 
 app.action("open_admin_password", async ({ ack, body, client }) => {
@@ -1051,9 +986,9 @@ app.action("open_admin_page", async ({ ack }) => {
   await ack();
 });
 
-
 /* ======================================================
- * 등록 모달
+ * 등록 모달 (eventCode 제거, bannerType 자동, mediaType 3개,
+ *            placeholder 추가, linkUrl→이벤트이미지url, linkData 제거)
  * ====================================================== */
 
 Object.keys(BANNER_TYPES).forEach((type) => {
@@ -1071,34 +1006,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
         blocks: [
           {
             type: "input",
-            block_id: "event_code_block",
-            label: { type: "plain_text", text: "타겟 이벤트코드" },
-            element: {
-              type: "plain_text_input",
-              action_id: "event_code",
-              placeholder: { type: "plain_text", text: "* ex) NMSV01" },
-            },
-          },
-          {
-            type: "input",
-            block_id: "banner_type_block",
-            label: { type: "plain_text", text: "배너구분" },
-            element: {
-              type: "static_select",
-              action_id: "banner_type",
-              placeholder: { type: "plain_text", text: "선택하세요" },
-              options: [
-                { text: { type: "plain_text", text: "00. 디폴트" }, value: "00" },
-                { text: { type: "plain_text", text: "01. 상단배너" }, value: "01" },
-                { text: { type: "plain_text", text: "02. 서비스배너" }, value: "02" },
-                { text: { type: "plain_text", text: "03. 플로팅배너" }, value: "03" },
-                { text: { type: "plain_text", text: "04. 이벤트공지" }, value: "04" },
-                { text: { type: "plain_text", text: "05. 로그아웃배너" }, value: "05" },
-              ],
-            },
-          },
-          {
-            type: "input",
             block_id: "media_type_block",
             label: { type: "plain_text", text: "매체유형" },
             element: {
@@ -1106,8 +1013,9 @@ Object.keys(BANNER_TYPES).forEach((type) => {
               action_id: "media_type",
               placeholder: { type: "plain_text", text: "선택하세요" },
               options: [
+                { text: { type: "plain_text", text: "공통" }, value: "common" },
                 { text: { type: "plain_text", text: "나무" }, value: "tree" },
-                { text: { type: "plain_text", text: "N2" }, value: "n2" },
+                { text: { type: "plain_text", text: "QV" }, value: "qv" },
               ],
             },
           },
@@ -1118,6 +1026,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             element: {
               type: "plain_text_input",
               action_id: "banner",
+              placeholder: { type: "plain_text", text: "플로팅 배너인 경우 반드시 줄바꿈 심볼을 넣어주세요. ex. 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
             },
           },
           {
@@ -1128,6 +1037,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
               type: "plain_text_input",
               action_id: "banner_desc",
               multiline: true,
+              placeholder: { type: "plain_text", text: "이제 환전 걱정할 필요 없어요" },
             },
           },
           {
@@ -1202,20 +1112,11 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             type: "input",
             block_id: "link_url_block",
             optional: true,
-            label: { type: "plain_text", text: "바로가기링크(선택사항)" },
+            label: { type: "plain_text", text: "이벤트이미지url" },
             element: {
               type: "plain_text_input",
               action_id: "link_url",
-            },
-          },
-          {
-            type: "input",
-            block_id: "link_data_block",
-            optional: true,
-            label: { type: "plain_text", text: "바로가기링크데이터(선택사항)" },
-            element: {
-              type: "plain_text_input",
-              action_id: "link_data",
+              placeholder: { type: "plain_text", text: "노출 4일 전 알림이 갈 예정입니다. 알림을 받으실 경우 실제 링크를 입력해주세요." },
             },
           },
         ],
@@ -1237,8 +1138,8 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     const newItem = {
       id: Date.now().toString(),
       priority: maxPriority + 1,
-      eventCode: v.event_code_block.event_code.value,
-      bannerType: v.banner_type_block.banner_type.selected_option?.value || "",
+      eventCode: "",
+      bannerType: BANNER_TYPE_AUTO[type] || "00",
       mediaType: v.media_type_block.media_type.selected_option?.value || "",
       banner: v.banner_block.banner.value,
       bannerDesc: v.banner_desc_block.banner_desc.value,
@@ -1248,14 +1149,13 @@ Object.keys(BANNER_TYPES).forEach((type) => {
       endDate: v.end_date_block.end_date.selected_date,
       linkType: v.link_type_block.link_type.selected_option?.value || "",
       linkUrl: v.link_url_block?.link_url?.value || "",
-      linkData: v.link_data_block?.link_data?.value || "",
+      linkData: "",
       createdBy: body.user.id,
       createdAt: new Date().toISOString(),
     };
 
-    // 🔥 단건 추가 (빠름)
     await addBannerItem(type, newItem);
-    await publishBannerMain(body.user.id, type);
+    publishBannerMain(body.user.id, type).catch(e => console.log("publishBannerMain 실패:", e.message));
   });
 });
 
@@ -1265,10 +1165,7 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
   const { id, type } = JSON.parse(view.private_metadata);
   const v = view.state.values;
 
-  // 🔥 단건 수정 (빠름)
   await updateBannerItem(type, id, {
-    eventCode: v.event_code_block.event_code.value,
-    bannerType: v.banner_type_block.banner_type.selected_option?.value || "",
     mediaType: v.media_type_block.media_type.selected_option?.value || "",
     banner: v.banner_block.banner.value,
     bannerDesc: v.banner_desc_block.banner_desc.value,
@@ -1278,12 +1175,11 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
     endDate: v.end_date_block.end_date.selected_date,
     linkType: v.link_type_block.link_type.selected_option?.value || "",
     linkUrl: v.link_url_block?.link_url?.value || "",
-    linkData: v.link_data_block?.link_data?.value || "",
     updatedAt: new Date().toISOString(),
   });
 
-  await publishBannerMain(body.user.id, type);
-  await publishMyReservations(body.user.id, type);
+  publishBannerMain(body.user.id, type).catch(e => console.log("publishBannerMain 실패:", e.message));
+  publishMyReservations(body.user.id, type).catch(e => console.log("publishMyReservations 실패:", e.message));
 });
 
 /* ======================================================
