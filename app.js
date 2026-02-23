@@ -73,8 +73,14 @@ const BANNER_TYPES = {
 const BANNER_TYPE_AUTO = {
   home: "01",
   floating: "03",
-  interest: "00",
+  interest: "99",
 };
+
+/* 🔥 관심종목탭 전용 슬롯 라벨 (6슬롯) */
+const INTEREST_RANK_LABELS = [
+  "실시간BEST", "투자고수종목", "국내종목순위",
+  "해외종목순위", "ETF순위", "기타(그 외 빈 구좌)"
+];
 
 /* ======================================================
  * MongoDB 유틸
@@ -95,7 +101,6 @@ async function loadBannerData(type) {
     return docs.map((doc, index) => {
       const clean = cleanDoc(doc);
       clean.id = clean.id || doc._id.toString();
-      // N2는 priority null 유지, 그 외는 fallback
       if (clean.mediaType !== "n2") {
         clean.priority = clean.priority ?? (index + 1);
       }
@@ -163,10 +168,6 @@ async function updatePriorities(type, priorityMap) {
     console.log(`❌ updatePriorities(${type}) 실패:`, e.message);
   }
 }
-
-/* ======================================================
- * 🔥 N2 제외 우선순위 재정렬 유틸
- * ====================================================== */
 
 async function recalcPriorities(type) {
   const list = await loadBannerData(type);
@@ -246,7 +247,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   const oldPriorityMap = {};
   list.forEach(item => { oldPriorityMap[item.id] = item.priority; });
 
-  // 🔥 N2인 경우 우선순위 null 처리
   const isN2 = (updatedData.mediaType || oldItem.mediaType) === "n2";
   const newPriority = isN2
     ? null
@@ -271,8 +271,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   safeUpdate.updatedAt = new Date().toISOString();
 
   await updateBannerItem(type, id, safeUpdate);
-
-  // 🔥 N2 제외 우선순위 재정렬
   await recalcPriorities(type);
 
   const updatedList = await loadBannerData(type);
@@ -313,7 +311,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       await app.client.chat.postMessage({
         channel: oldItem.createdBy,
         text:
-          `📢 관리자에 의해 *"${oldItem.banner}"* 게시물이 수정되었습니다.\n\n` +
+          `📢 관리자에 의해 *"${oldItem.banner || "관심그룹탭"}"* 게시물이 수정되었습니다.\n\n` +
           `🔎 변경된 항목:\n\n` +
           changedDetails.join("\n\n"),
       });
@@ -322,7 +320,6 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     console.log("Slack DM 실패:", e.message);
   }
 
-  // 우선순위 변동 DM (N2 스킵)
   try {
     for (const item of updatedList) {
       if (item.id === id) continue;
@@ -333,7 +330,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
         await app.client.chat.postMessage({
           channel: item.createdBy,
           text:
-            `📢 관리자에 의해 *"${item.banner}"* 게시물의 우선순위가 변경되었습니다.\n\n` +
+            `📢 관리자에 의해 *"${item.banner || "관심그룹탭"}"* 게시물의 우선순위가 변경되었습니다.\n\n` +
             `• 우선순위\n   ${oldP} → ${newP}`,
         });
       }
@@ -373,14 +370,12 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
   }
 
   await deleteBannerItem(type, id);
-
-  // 🔥 N2 제외 우선순위 재정렬
   await recalcPriorities(type);
 
   try {
     await app.client.chat.postMessage({
       channel: target.createdBy,
-      text: `⚠️ 관리자에 의해 *"${target.banner}"* 게시물이 삭제되었습니다.`,
+      text: `⚠️ 관리자에 의해 *"${target.banner || "관심그룹탭"}"* 게시물이 삭제되었습니다.`,
     });
   } catch (e) {
     console.log("Slack DM 실패:", e.message);
@@ -417,9 +412,6 @@ const app = new App({
   receiver,
 });
 
-/* ======================================================
- * Slack 유저명 캐시
- * ====================================================== */
 const userNameCache = {};
 
 async function getSlackUserName(userId) {
@@ -508,17 +500,17 @@ async function publishHome(userId) {
 }
 
 /* ======================================================
- * 배너 메인 화면 (주간리스트) — 🔥 N2 제외
+ * 배너 메인 화면 (주간리스트) — N2 제외, interest 전용 라벨
  * ====================================================== */
 
 async function publishBannerMain(userId, type) {
   const allData = await loadBannerData(type);
-
-  // 🔥 주간 스케줄에서 N2 제외
   const calendarData = allData.filter(item => item.mediaType !== "n2");
 
+  const isInterest = type === "interest";
   const dates = getThisWeekDates();
-  const ranks = Array.from({ length: 7 }, (_, i) => i + 1);
+  const maxRanks = isInterest ? 6 : 7;
+  const ranks = Array.from({ length: maxRanks }, (_, i) => i + 1);
 
   const blocks = [
     {
@@ -573,8 +565,14 @@ async function publishBannerMain(userId, type) {
 
     const lines = ranks.map((rank) => {
       const found = sorted[rank - 1];
-      const label = rank <= 5 ? `${rank}순위` : `대기 ${rank - 5}`;
-      return found ? `${label}  ${found.banner}` : `${label} —`;
+      let label;
+      if (isInterest) {
+        label = INTEREST_RANK_LABELS[rank - 1] || `슬롯${rank}`;
+      } else {
+        label = rank <= 5 ? `${rank}순위` : `대기 ${rank - 5}`;
+      }
+      const displayName = found ? (found.banner || "등록됨") : "—";
+      return `${label}  ${displayName}`;
     });
 
     blocks.push({
@@ -636,15 +634,21 @@ async function publishMyReservations(userId, type) {
     allMyItems.forEach((item) => {
       const typeLabel = BANNER_TYPES[item._type] || item._type;
       const mediaLabel = { "common": "공통", "tree": "나무", "n2": "N2" }[item.mediaType] || item.mediaType || "";
-      // 🔥 N2는 우선순위 "—" 표시
       const priorityText = item.mediaType === "n2" ? "우선순위: —" : `우선순위: ${item.priority || "—"}`;
+
+      // 🔥 interest는 배너명 대신 슬롯 라벨 표시
+      let displayName = item.banner;
+      if (!displayName && item._type === "interest" && item.priority) {
+        displayName = INTEREST_RANK_LABELS[(item.priority - 1)] || "관심그룹탭";
+      }
+      displayName = displayName || "—";
 
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
           text:
-            `*${item.banner}*  |  ${typeLabel}  |  ${mediaLabel}\n` +
+            `*${displayName}*  |  ${typeLabel}  |  ${mediaLabel}\n` +
             `${item.startDate} ~ ${item.endDate}  |  ${priorityText}\n` +
             `> ${item.bannerDesc || ""}`,
         },
@@ -695,6 +699,220 @@ app.action("my_reservations_all", async ({ ack, body }) => {
   publishMyReservations(body.user.id, null).catch(e => console.log("publishMyReservations 실패:", e.message));
 });
 
+/* ======================================================
+ * 🔥 등록/수정 모달 블록 빌더 (interest 분기)
+ * ====================================================== */
+
+function buildModalBlocks(type, item) {
+  const isInterest = type === "interest";
+  const isEdit = !!item;
+  const blocks = [];
+
+  // 매체유형 (공통)
+  const mediaTypeElement = {
+    type: "static_select",
+    action_id: "media_type",
+    options: [
+      { text: { type: "plain_text", text: "공통" }, value: "common" },
+      { text: { type: "plain_text", text: "나무" }, value: "tree" },
+      { text: { type: "plain_text", text: "N2" }, value: "n2" },
+    ],
+  };
+  if (isEdit && item.mediaType) {
+    const mtLabel = { "common": "공통", "tree": "나무", "n2": "N2" }[item.mediaType] || item.mediaType;
+    mediaTypeElement.initial_option = {
+      text: { type: "plain_text", text: mtLabel },
+      value: item.mediaType,
+    };
+  } else {
+    mediaTypeElement.placeholder = { type: "plain_text", text: "선택하세요" };
+  }
+  blocks.push({
+    type: "input",
+    block_id: "media_type_block",
+    label: { type: "plain_text", text: "매체유형" },
+    element: mediaTypeElement,
+  });
+
+  // 배너명 (interest 제외)
+  if (!isInterest) {
+    blocks.push({
+      type: "input",
+      block_id: "banner_block",
+      label: { type: "plain_text", text: "배너명" },
+      element: {
+        type: "plain_text_input",
+        action_id: "banner",
+        multiline: true,
+        ...(isEdit ? { initial_value: item.banner || "" } : {}),
+        placeholder: { type: "plain_text", text: "플로팅 배너인 경우 반드시 줄바꿈 심볼을 넣어주세요. ex. 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
+      },
+    });
+  }
+
+  // 배너내용 (interest 제외)
+  if (!isInterest) {
+    blocks.push({
+      type: "input",
+      block_id: "banner_desc_block",
+      label: { type: "plain_text", text: "배너내용" },
+      element: {
+        type: "plain_text_input",
+        action_id: "banner_desc",
+        ...(isEdit ? { initial_value: item.bannerDesc || "" } : {}),
+        placeholder: { type: "plain_text", text: "이제 환전 걱정할 필요 없어요" },
+      },
+    });
+  }
+
+  // 상품구분 (공통)
+  const ptElement = {
+    type: "static_select",
+    action_id: "product_type",
+    options: [
+      { text: { type: "plain_text", text: "국내주식" }, value: "domestic_stock" },
+      { text: { type: "plain_text", text: "해외주식" }, value: "foreign_stock" },
+      { text: { type: "plain_text", text: "국내/해외주식" }, value: "both_stock" },
+      { text: { type: "plain_text", text: "금융상품" }, value: "financial" },
+      { text: { type: "plain_text", text: "연금" }, value: "pension" },
+      { text: { type: "plain_text", text: "기타" }, value: "etc" },
+    ],
+  };
+  if (isEdit && item.productType) {
+    const ptLabel = {
+      "domestic_stock": "국내주식", "foreign_stock": "해외주식",
+      "both_stock": "국내/해외주식", "financial": "금융상품",
+      "pension": "연금", "etc": "기타"
+    }[item.productType] || item.productType;
+    ptElement.initial_option = {
+      text: { type: "plain_text", text: ptLabel },
+      value: item.productType,
+    };
+  } else {
+    ptElement.placeholder = { type: "plain_text", text: "선택하세요" };
+  }
+  blocks.push({
+    type: "input",
+    block_id: "product_type_block",
+    label: { type: "plain_text", text: "상품구분" },
+    element: ptElement,
+  });
+
+  // 목적 (공통)
+  const purposeElement = {
+    type: "static_select",
+    action_id: "purpose",
+    options: [
+      { text: { type: "plain_text", text: "세일즈마케팅" }, value: "sales_marketing" },
+      { text: { type: "plain_text", text: "정보제공(제도 등)" }, value: "info" },
+      { text: { type: "plain_text", text: "서비스활성화" }, value: "service" },
+      { text: { type: "plain_text", text: "기타" }, value: "etc" },
+    ],
+  };
+  if (isEdit && item.purpose) {
+    const purLabel = {
+      "sales_marketing": "세일즈마케팅", "info": "정보제공(제도 등)",
+      "service": "서비스활성화", "etc": "기타"
+    }[item.purpose] || item.purpose;
+    purposeElement.initial_option = {
+      text: { type: "plain_text", text: purLabel },
+      value: item.purpose,
+    };
+  } else {
+    purposeElement.placeholder = { type: "plain_text", text: "선택하세요" };
+  }
+  blocks.push({
+    type: "input",
+    block_id: "purpose_block",
+    label: { type: "plain_text", text: "목적" },
+    element: purposeElement,
+  });
+
+  // 노출시작 희망일자
+  blocks.push({
+    type: "input",
+    block_id: "start_date_block",
+    label: { type: "plain_text", text: "노출시작 희망일자" },
+    element: {
+      type: "datepicker",
+      action_id: "start_date",
+      ...(isEdit && item.startDate ? { initial_date: item.startDate } : {}),
+    },
+  });
+
+  // 노출종료 희망일자
+  blocks.push({
+    type: "input",
+    block_id: "end_date_block",
+    label: { type: "plain_text", text: "노출종료 희망일자" },
+    element: {
+      type: "datepicker",
+      action_id: "end_date",
+      ...(isEdit && item.endDate ? { initial_date: item.endDate } : {}),
+    },
+  });
+
+  // 바로가기속성 (interest: 2개, 그 외: 4개)
+  const linkOptions = isInterest
+    ? [
+        { text: { type: "plain_text", text: "URL[배너형]" }, value: "url" },
+        { text: { type: "plain_text", text: "화면[배너형]" }, value: "screen" },
+      ]
+    : [
+        { text: { type: "plain_text", text: "화면오픈" }, value: "screen" },
+        { text: { type: "plain_text", text: "팝업오픈" }, value: "popup" },
+        { text: { type: "plain_text", text: "프레임팝업" }, value: "frame_popup" },
+        { text: { type: "plain_text", text: "URL" }, value: "url" },
+      ];
+
+  const ltElement = {
+    type: "static_select",
+    action_id: "link_type",
+    options: linkOptions,
+  };
+
+  if (isEdit && item.linkType) {
+    const validValues = linkOptions.map(o => o.value);
+    if (validValues.includes(item.linkType)) {
+      const ltLabel = linkOptions.find(o => o.value === item.linkType)?.text.text || item.linkType;
+      ltElement.initial_option = {
+        text: { type: "plain_text", text: ltLabel },
+        value: item.linkType,
+      };
+    }
+  }
+  if (!ltElement.initial_option) {
+    ltElement.placeholder = { type: "plain_text", text: "선택하세요" };
+  }
+  blocks.push({
+    type: "input",
+    block_id: "link_type_block",
+    label: { type: "plain_text", text: "바로가기속성" },
+    element: ltElement,
+  });
+
+  // 이벤트이미지url (공통)
+  blocks.push({
+    type: "input",
+    block_id: "link_url_block",
+    optional: true,
+    label: { type: "plain_text", text: "이벤트이미지url" },
+    element: {
+      type: "plain_text_input",
+      action_id: "link_url",
+      multiline: true,
+      ...(isEdit ? { initial_value: item.linkUrl || "" } : {}),
+      placeholder: { type: "plain_text", text: "노출 4일 전 알림이 갈 예정입니다. 알림을 받으실 경우 실제 링크를 입력해주세요." },
+    },
+  });
+
+  return blocks;
+}
+
+/* ======================================================
+ * 수정 모달 열기
+ * ====================================================== */
+
 app.action("edit_my_reservation", async ({ ack, body, client }) => {
   await ack();
 
@@ -706,7 +924,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
 
   const list = await loadBannerData(type);
   const item = list.find((i) => i.id === id);
-
   if (!item) return;
 
   await client.views.open({
@@ -718,163 +935,7 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
       submit: { type: "plain_text", text: "수정완료" },
       close: { type: "plain_text", text: "취소" },
       private_metadata: JSON.stringify({ id, type }),
-      blocks: [
-        {
-          type: "input",
-          block_id: "media_type_block",
-          label: { type: "plain_text", text: "매체유형" },
-          element: {
-            type: "static_select",
-            action_id: "media_type",
-            initial_option: item.mediaType
-              ? {
-                  text: { type: "plain_text", text: {
-                    "common": "공통", "tree": "나무", "n2": "N2"
-                  }[item.mediaType] || item.mediaType },
-                  value: item.mediaType,
-                }
-              : undefined,
-            options: [
-              { text: { type: "plain_text", text: "공통" }, value: "common" },
-              { text: { type: "plain_text", text: "나무" }, value: "tree" },
-              { text: { type: "plain_text", text: "N2" }, value: "n2" },
-            ],
-          },
-        },
-        {
-          type: "input",
-          block_id: "banner_block",
-          label: { type: "plain_text", text: "배너명" },
-          element: {
-            type: "plain_text_input",
-            action_id: "banner",
-            multiline: true,
-            initial_value: item.banner || "",
-            placeholder: { type: "plain_text", text: "플로팅 배너인 경우 반드시 줄바꿈 심볼을 넣어주세요. ex. 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
-          },
-        },
-        {
-          type: "input",
-          block_id: "banner_desc_block",
-          label: { type: "plain_text", text: "배너내용" },
-          element: {
-            type: "plain_text_input",
-            action_id: "banner_desc",
-            initial_value: item.bannerDesc || "",
-            placeholder: { type: "plain_text", text: "이제 환전 걱정할 필요 없어요" },
-          },
-        },
-        {
-          type: "input",
-          block_id: "product_type_block",
-          label: { type: "plain_text", text: "상품구분" },
-          element: {
-            type: "static_select",
-            action_id: "product_type",
-            initial_option: item.productType
-              ? {
-                  text: { type: "plain_text", text: {
-                    "domestic_stock": "국내주식", "foreign_stock": "해외주식",
-                    "both_stock": "국내/해외주식", "financial": "금융상품",
-                    "pension": "연금", "etc": "기타"
-                  }[item.productType] || item.productType },
-                  value: item.productType,
-                }
-              : undefined,
-            placeholder: { type: "plain_text", text: "선택하세요" },
-            options: [
-              { text: { type: "plain_text", text: "국내주식" }, value: "domestic_stock" },
-              { text: { type: "plain_text", text: "해외주식" }, value: "foreign_stock" },
-              { text: { type: "plain_text", text: "국내/해외주식" }, value: "both_stock" },
-              { text: { type: "plain_text", text: "금융상품" }, value: "financial" },
-              { text: { type: "plain_text", text: "연금" }, value: "pension" },
-              { text: { type: "plain_text", text: "기타" }, value: "etc" },
-            ],
-          },
-        },
-        {
-          type: "input",
-          block_id: "purpose_block",
-          label: { type: "plain_text", text: "목적" },
-          element: {
-            type: "static_select",
-            action_id: "purpose",
-            initial_option: item.purpose
-              ? {
-                  text: { type: "plain_text", text: {
-                    "sales_marketing": "세일즈마케팅", "info": "정보제공(제도 등)",
-                    "service": "서비스활성화", "etc": "기타"
-                  }[item.purpose] || item.purpose },
-                  value: item.purpose,
-                }
-              : undefined,
-            placeholder: { type: "plain_text", text: "선택하세요" },
-            options: [
-              { text: { type: "plain_text", text: "세일즈마케팅" }, value: "sales_marketing" },
-              { text: { type: "plain_text", text: "정보제공(제도 등)" }, value: "info" },
-              { text: { type: "plain_text", text: "서비스활성화" }, value: "service" },
-              { text: { type: "plain_text", text: "기타" }, value: "etc" },
-            ],
-          },
-        },
-        {
-          type: "input",
-          block_id: "start_date_block",
-          label: { type: "plain_text", text: "노출시작 희망일자" },
-          element: {
-            type: "datepicker",
-            action_id: "start_date",
-            initial_date: item.startDate,
-          },
-        },
-        {
-          type: "input",
-          block_id: "end_date_block",
-          label: { type: "plain_text", text: "노출종료 희망일자" },
-          element: {
-            type: "datepicker",
-            action_id: "end_date",
-            initial_date: item.endDate,
-          },
-        },
-        {
-          type: "input",
-          block_id: "link_type_block",
-          label: { type: "plain_text", text: "바로가기속성" },
-          element: {
-            type: "static_select",
-            action_id: "link_type",
-            initial_option: item.linkType
-              ? {
-                  text: { type: "plain_text", text: {
-                    "screen": "화면오픈", "popup": "팝업오픈",
-                    "frame_popup": "프레임팝업", "url": "URL"
-                  }[item.linkType] || item.linkType },
-                  value: item.linkType,
-                }
-              : undefined,
-            options: [
-              { text: { type: "plain_text", text: "화면오픈" }, value: "screen" },
-              { text: { type: "plain_text", text: "팝업오픈" }, value: "popup" },
-              { text: { type: "plain_text", text: "프레임팝업" }, value: "frame_popup" },
-              { text: { type: "plain_text", text: "URL" }, value: "url" },
-            ],
-          },
-        },
-        {
-          type: "input",
-          block_id: "link_url_block",
-          optional: true,
-          label: { type: "plain_text", text: "이벤트이미지url" },
-          element: {
-            type: "plain_text_input",
-            action_id: "link_url",
-            multiline: true,
-            initial_value: item.linkUrl || "",
-            placeholder: { type: "plain_text", text: "노출 4일 전 알림이 갈 예정입니다. 알림을 받으실 경우 실제 링크를 입력해주세요." },
-          },
-        },
-      ],
+      blocks: buildModalBlocks(type, item),
     },
   });
 });
@@ -891,10 +952,7 @@ app.action("delete_reservation", async ({ ack, body }) => {
 
   (async () => {
     await deleteBannerItem(type, id);
-
-    // 🔥 N2 제외 우선순위 재정렬
     await recalcPriorities(type);
-
     await publishMyReservations(userId, type);
   })().catch(e => console.log("delete_reservation 실패:", e.message));
 });
@@ -975,9 +1033,7 @@ app.action("open_admin_page", async ({ ack }) => {
 });
 
 /* ======================================================
- * 등록 모달 (매체유형: 공통/나무/N2)
- * 🔥 배너명: multiline, 배너내용: 단일줄, 이벤트이미지url: multiline
- * 🔥 N2 등록 시 priority = null
+ * 등록 모달 + 등록 처리
  * ====================================================== */
 
 Object.keys(BANNER_TYPES).forEach((type) => {
@@ -992,124 +1048,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
         title: { type: "plain_text", text: `${BANNER_TYPES[type]} 일정 등록` },
         submit: { type: "plain_text", text: "등록" },
         close: { type: "plain_text", text: "취소" },
-        blocks: [
-          {
-            type: "input",
-            block_id: "media_type_block",
-            label: { type: "plain_text", text: "매체유형" },
-            element: {
-              type: "static_select",
-              action_id: "media_type",
-              placeholder: { type: "plain_text", text: "선택하세요" },
-              options: [
-                { text: { type: "plain_text", text: "공통" }, value: "common" },
-                { text: { type: "plain_text", text: "나무" }, value: "tree" },
-                { text: { type: "plain_text", text: "N2" }, value: "n2" },
-              ],
-            },
-          },
-          {
-            type: "input",
-            block_id: "banner_block",
-            label: { type: "plain_text", text: "배너명" },
-            element: {
-              type: "plain_text_input",
-              action_id: "banner",
-              multiline: true,
-              placeholder: { type: "plain_text", text: "플로팅 배너인 경우 반드시 줄바꿈 심볼을 넣어주세요. ex. 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
-            },
-          },
-          {
-            type: "input",
-            block_id: "banner_desc_block",
-            label: { type: "plain_text", text: "배너내용" },
-            element: {
-              type: "plain_text_input",
-              action_id: "banner_desc",
-              placeholder: { type: "plain_text", text: "이제 환전 걱정할 필요 없어요" },
-            },
-          },
-          {
-            type: "input",
-            block_id: "product_type_block",
-            label: { type: "plain_text", text: "상품구분" },
-            element: {
-              type: "static_select",
-              action_id: "product_type",
-              placeholder: { type: "plain_text", text: "선택하세요" },
-              options: [
-                { text: { type: "plain_text", text: "국내주식" }, value: "domestic_stock" },
-                { text: { type: "plain_text", text: "해외주식" }, value: "foreign_stock" },
-                { text: { type: "plain_text", text: "국내/해외주식" }, value: "both_stock" },
-                { text: { type: "plain_text", text: "금융상품" }, value: "financial" },
-                { text: { type: "plain_text", text: "연금" }, value: "pension" },
-                { text: { type: "plain_text", text: "기타" }, value: "etc" },
-              ],
-            },
-          },
-          {
-            type: "input",
-            block_id: "purpose_block",
-            label: { type: "plain_text", text: "목적" },
-            element: {
-              type: "static_select",
-              action_id: "purpose",
-              placeholder: { type: "plain_text", text: "선택하세요" },
-              options: [
-                { text: { type: "plain_text", text: "세일즈마케팅" }, value: "sales_marketing" },
-                { text: { type: "plain_text", text: "정보제공(제도 등)" }, value: "info" },
-                { text: { type: "plain_text", text: "서비스활성화" }, value: "service" },
-                { text: { type: "plain_text", text: "기타" }, value: "etc" },
-              ],
-            },
-          },
-          {
-            type: "input",
-            block_id: "start_date_block",
-            label: { type: "plain_text", text: "노출시작 희망일자" },
-            element: {
-              type: "datepicker",
-              action_id: "start_date",
-            },
-          },
-          {
-            type: "input",
-            block_id: "end_date_block",
-            label: { type: "plain_text", text: "노출종료 희망일자" },
-            element: {
-              type: "datepicker",
-              action_id: "end_date",
-            },
-          },
-          {
-            type: "input",
-            block_id: "link_type_block",
-            label: { type: "plain_text", text: "바로가기속성" },
-            element: {
-              type: "static_select",
-              action_id: "link_type",
-              placeholder: { type: "plain_text", text: "선택하세요" },
-              options: [
-                { text: { type: "plain_text", text: "화면오픈" }, value: "screen" },
-                { text: { type: "plain_text", text: "팝업오픈" }, value: "popup" },
-                { text: { type: "plain_text", text: "프레임팝업" }, value: "frame_popup" },
-                { text: { type: "plain_text", text: "URL" }, value: "url" },
-              ],
-            },
-          },
-          {
-            type: "input",
-            block_id: "link_url_block",
-            optional: true,
-            label: { type: "plain_text", text: "이벤트이미지url" },
-            element: {
-              type: "plain_text_input",
-              action_id: "link_url",
-              multiline: true,
-              placeholder: { type: "plain_text", text: "노출 4일 전 알림이 갈 예정입니다. 알림을 받으실 경우 실제 링크를 입력해주세요." },
-            },
-          },
-        ],
+        blocks: buildModalBlocks(type, null),
       },
     });
   });
@@ -1118,12 +1057,11 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     await ack();
 
     const v = view.state.values;
+    const isInterest = type === "interest";
     const mediaType = v.media_type_block.media_type.selected_option?.value || "";
     const isN2 = mediaType === "n2";
 
     const list = await loadBannerData(type);
-
-    // 🔥 N2 제외하고 최대 우선순위 계산
     const nonN2List = list.filter(item => item.mediaType !== "n2");
     const maxPriority =
       nonN2List.length > 0
@@ -1136,8 +1074,8 @@ Object.keys(BANNER_TYPES).forEach((type) => {
       eventCode: "",
       bannerType: BANNER_TYPE_AUTO[type] || "00",
       mediaType,
-      banner: v.banner_block.banner.value,
-      bannerDesc: v.banner_desc_block.banner_desc.value,
+      banner: isInterest ? "" : (v.banner_block?.banner?.value || ""),
+      bannerDesc: isInterest ? "" : (v.banner_desc_block?.banner_desc?.value || ""),
       productType: v.product_type_block.product_type.selected_option?.value || "",
       purpose: v.purpose_block.purpose.selected_option?.value || "",
       startDate: v.start_date_block.start_date.selected_date,
@@ -1154,19 +1092,22 @@ Object.keys(BANNER_TYPES).forEach((type) => {
   });
 });
 
+/* ======================================================
+ * 수정 모달 처리
+ * ====================================================== */
+
 app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
   await ack();
 
   const { id, type } = JSON.parse(view.private_metadata);
   const v = view.state.values;
+  const isInterest = type === "interest";
 
   const mediaType = v.media_type_block.media_type.selected_option?.value || "";
   const isN2 = mediaType === "n2";
 
-  await updateBannerItem(type, id, {
+  const updates = {
     mediaType,
-    banner: v.banner_block.banner.value,
-    bannerDesc: v.banner_desc_block.banner_desc.value,
     productType: v.product_type_block.product_type.selected_option?.value || "",
     purpose: v.purpose_block.purpose.selected_option?.value || "",
     startDate: v.start_date_block.start_date.selected_date,
@@ -1175,9 +1116,15 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
     linkUrl: v.link_url_block?.link_url?.value || "",
     priority: isN2 ? null : undefined,
     updatedAt: new Date().toISOString(),
-  });
+  };
 
-  // 🔥 N2 제외 우선순위 재정렬
+  // interest는 배너명/배너내용 없음
+  if (!isInterest) {
+    updates.banner = v.banner_block?.banner?.value || "";
+    updates.bannerDesc = v.banner_desc_block?.banner_desc?.value || "";
+  }
+
+  await updateBannerItem(type, id, updates);
   await recalcPriorities(type);
 
   publishBannerMain(body.user.id, type).catch(e => console.log("publishBannerMain 실패:", e.message));

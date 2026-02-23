@@ -50,6 +50,12 @@ const COLOR_CLASSES = [
   "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
 ];
 
+/* 🔥 관심종목탭 전용 슬롯 라벨 */
+const INTEREST_RANK_LABELS = [
+  "실시간BEST", "투자고수종목", "국내종목순위",
+  "해외종목순위", "ETF순위", "기타(그 외 빈 구좌)"
+];
+
 export default function BannerPage() {
   const { type } = useParams();
   const today = new Date();
@@ -90,14 +96,27 @@ export default function BannerPage() {
     let idx = 0;
 
     calendarBanners.forEach(b => {
-      if (!map[b.banner]) {
-        map[b.banner] = COLOR_CLASSES[idx % COLOR_CLASSES.length];
+      const displayKey = b.banner || `slot_${b.priority || idx}`;
+      if (!map[displayKey]) {
+        map[displayKey] = COLOR_CLASSES[idx % COLOR_CLASSES.length];
         idx++;
       }
     });
 
     return map;
   }, [calendarBanners]);
+
+  function getDisplayName(item) {
+    if (item.banner) return item.banner;
+    if (type === "interest" && item.priority) {
+      return INTEREST_RANK_LABELS[item.priority - 1] || `슬롯${item.priority}`;
+    }
+    return "등록됨";
+  }
+
+  function getColorKey(item) {
+    return item.banner || `slot_${item.priority || 0}`;
+  }
 
   const days = getMonthMatrix(year, month);
 
@@ -108,11 +127,14 @@ export default function BannerPage() {
     setSelectedDate(null);
   }
 
+  const isInterest = type === "interest";
+  const maxSlots = isInterest ? 6 : 7;
+
   const selectedDayItems = selectedDate
     ? calendarBanners
         .filter(b => b.startDate <= selectedDate && b.endDate >= selectedDate)
         .sort((a, b) => (a.priority || 99) - (b.priority || 99))
-        .slice(0, 7)
+        .slice(0, maxSlots)
     : [];
 
   return (
@@ -172,8 +194,8 @@ export default function BannerPage() {
               .filter(b => b.startDate <= dateStr && b.endDate >= dateStr)
               .sort((a, b) => (a.priority || 99) - (b.priority || 99));
 
-            const visible = dayItems.slice(0, 5);
-            const hasWaiting = dayItems.length > 5;
+            const visible = dayItems.slice(0, isInterest ? 6 : 5);
+            const hasWaiting = isInterest ? false : dayItems.length > 5;
 
             return (
               <div
@@ -193,9 +215,9 @@ export default function BannerPage() {
                   {visible.map(item => (
                     <div
                       key={`${item.id}-${dateStr}`}
-                      className={`rounded px-1 py-0.5 text-xs leading-tight ${bannerColorMap[item.banner]}`}
+                      className={`rounded px-1 py-0.5 text-xs leading-tight ${bannerColorMap[getColorKey(item)]}`}
                     >
-                      {item.banner}
+                      {getDisplayName(item)}
                     </div>
                   ))}
 
@@ -224,25 +246,35 @@ export default function BannerPage() {
             ) : (
               <ul className="space-y-2">
                 {selectedDayItems.map((item, index) => {
-                  const isWaiting = index >= 5;
-                  const rankLabel = isWaiting
-                    ? `대기 ${index - 4}`
-                    : `${index + 1}순위`;
+                  const isWaiting = isInterest ? false : index >= 5;
+                  let rankLabel;
+                  if (isInterest) {
+                    rankLabel = INTEREST_RANK_LABELS[index] || `슬롯${index + 1}`;
+                  } else {
+                    rankLabel = isWaiting
+                      ? `대기 ${index - 4}`
+                      : `${index + 1}순위`;
+                  }
 
                   return (
                     <li
                       key={item.id}
-                      className={`rounded px-3 py-2 text-sm ${bannerColorMap[item.banner]}`}
+                      className={`rounded px-3 py-2 text-sm ${bannerColorMap[getColorKey(item)]}`}
                     >
                       <div className="flex items-center gap-2 font-medium">
-                        <span className={`inline-block min-w-[52px] rounded px-1.5 py-0.5 text-xs font-bold ${
+                        <span className={`inline-block ${isInterest ? "min-w-[100px]" : "min-w-[52px]"} rounded px-1.5 py-0.5 text-xs font-bold ${
                           isWaiting
                             ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                             : "bg-white/60 text-zinc-700 dark:bg-black/30 dark:text-zinc-200"
                         }`}>
                           {rankLabel}
                         </span>
-                        {item.banner}
+                        {getDisplayName(item)}
+                        {!isInterest && (
+                          <span className="ml-1 text-[11px] font-normal opacity-60">
+                            ({item.mediaType === "tree" ? "나무" : "공통"})
+                          </span>
+                        )}
                       </div>
 
                       <div className="ml-[60px] text-xs opacity-80">

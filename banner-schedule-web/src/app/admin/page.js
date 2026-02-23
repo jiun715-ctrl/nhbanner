@@ -18,6 +18,7 @@ const BANNER_TYPE_OPTIONS = [
   { value: "03", label: "03. 플로팅배너" },
   { value: "04", label: "04. 이벤트공지" },
   { value: "05", label: "05. 로그아웃배너" },
+  { value: "99", label: "99. 관심그룹" },
 ];
 
 const MEDIA_TYPE_OPTIONS = [
