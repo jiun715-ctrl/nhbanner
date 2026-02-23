@@ -32,6 +32,22 @@ const LINK_TYPE_OPTIONS = [
   { value: "url", label: "URL" },
 ];
 
+const PRODUCT_TYPE_OPTIONS = [
+  { value: "domestic_stock", label: "국내주식" },
+  { value: "foreign_stock", label: "해외주식" },
+  { value: "both_stock", label: "국내/해외주식" },
+  { value: "financial", label: "금융상품" },
+  { value: "pension", label: "연금" },
+  { value: "etc", label: "기타" },
+];
+
+const PURPOSE_OPTIONS = [
+  { value: "sales_marketing", label: "세일즈마케팅" },
+  { value: "info", label: "정보제공(제도 등)" },
+  { value: "service", label: "서비스활성화" },
+  { value: "etc", label: "기타" },
+];
+
 function getCurrentMonthYYYYMM() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -101,6 +117,8 @@ export default function AdminPage() {
       mediaType: item.mediaType || "",
       banner: item.banner || "",
       bannerDesc: item.bannerDesc || "",
+      productType: item.productType || "",
+      purpose: item.purpose || "",
       startDate: item.startDate || "",
       endDate: item.endDate || "",
       linkType: item.linkType || "",
@@ -154,6 +172,8 @@ export default function AdminPage() {
       매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
       배너명: item.banner,
       배너내용: item.bannerDesc,
+      상품구분: getLabel(PRODUCT_TYPE_OPTIONS, item.productType),
+      목적: getLabel(PURPOSE_OPTIONS, item.purpose),
       노출시작: item.startDate,
       노출종료: item.endDate,
       바로가기속성: getLabel(LINK_TYPE_OPTIONS, item.linkType),
@@ -237,12 +257,12 @@ export default function AdminPage() {
               <thead>
                 <tr style={{ background: "#f8fafc", borderBottom: "2px solid #e2e8f0" }}>
                   {["수정","우선순위","No","담당자","이벤트코드","배너구분","매체유형","배너명","배너내용",
-                    "노출시작","노출종료","바로가기속성","바로가기링크","링크데이터","삭제"].map((h, i) => (
+                    "상품구분","목적","노출시작","노출종료","바로가기속성","바로가기링크","링크데이터","삭제"].map((h, i) => (
                     <th key={i} style={{
                       padding: "11px 12px",
-                      textAlign: [0,1,2,14].includes(i) ? "center" : "left",
+                      textAlign: [0,1,2,16].includes(i) ? "center" : "left",
                       fontSize: 11, fontWeight: 700,
-                      color: i === 14 ? "#dc2626" : "#64748b",
+                      color: i === 16 ? "#dc2626" : "#64748b",
                       letterSpacing: "0.3px",
                     }}>{h}</th>
                   ))}
@@ -250,11 +270,11 @@ export default function AdminPage() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={15} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
+                  <tr><td colSpan={17} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
                     ⏳ 데이터 로딩중...
                   </td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={15} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
+                  <tr><td colSpan={17} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
                     등록된 배너가 없습니다
                   </td></tr>
                 ) : filtered.map((item, idx) => (
@@ -283,6 +303,8 @@ export default function AdminPage() {
                     <td style={{ ...tdS, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
                       {item.bannerDesc || "—"}
                     </td>
+                    <td style={tdS}>{getLabel(PRODUCT_TYPE_OPTIONS, item.productType)}</td>
+                    <td style={tdS}>{getLabel(PURPOSE_OPTIONS, item.purpose)}</td>
                     <td style={{ ...tdS, textAlign: "center" }}>{item.startDate || "—"}</td>
                     <td style={{ ...tdS, textAlign: "center" }}>{item.endDate || "—"}</td>
                     <td style={tdS}>{getLabel(LINK_TYPE_OPTIONS, item.linkType)}</td>
@@ -361,6 +383,23 @@ export default function AdminPage() {
                 <textarea style={{ ...inp, minHeight: 72, resize: "vertical" }} value={editForm.bannerDesc}
                   onChange={(e) => setEditForm({ ...editForm, bannerDesc: e.target.value })} />
               </Field>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <Field label="상품구분">
+                  <select style={inp} value={editForm.productType}
+                    onChange={(e) => setEditForm({ ...editForm, productType: e.target.value })}>
+                    <option value="">선택하세요</option>
+                    {PRODUCT_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </Field>
+                <Field label="목적">
+                  <select style={inp} value={editForm.purpose}
+                    onChange={(e) => setEditForm({ ...editForm, purpose: e.target.value })}>
+                    <option value="">선택하세요</option>
+                    {PURPOSE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </Field>
+              </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="노출시작 희망일자">

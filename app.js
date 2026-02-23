@@ -35,6 +35,8 @@ const bannerSchema = new mongoose.Schema({
   mediaType: String,
   banner: String,
   bannerDesc: String,
+  productType: String,
+  purpose: String,
   startDate: String,
   endDate: String,
   linkType: String,
@@ -219,7 +221,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     return res.status(404).json({ error: "Not found" });
   }
 
-const oldItem = list[index];
+  const oldItem = list[index];
   const oldPriority = oldItem.priority || 1;
 
   // 🔥 모든 아이템의 기존 우선순위 저장 (swap 감지용)
@@ -236,7 +238,7 @@ const oldItem = list[index];
   const safeUpdate = {};
   const updateKeys = [
     "eventCode", "bannerType", "mediaType", "banner",
-    "bannerDesc", "startDate", "endDate", "linkType",
+    "bannerDesc", "productType", "purpose", "startDate", "endDate", "linkType",
     "linkUrl", "linkData"
   ];
 
@@ -287,6 +289,8 @@ const oldItem = list[index];
       endDate: "노출종료일",
       banner: "배너명",
       bannerDesc: "배너내용",
+      productType: "상품구분",
+      purpose: "목적",
       bannerType: "배너구분",
       mediaType: "매체유형",
       linkType: "바로가기속성",
@@ -805,6 +809,59 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
         },
         {
           type: "input",
+          block_id: "product_type_block",
+          label: { type: "plain_text", text: "상품구분" },
+          element: {
+            type: "static_select",
+            action_id: "product_type",
+            initial_option: item.productType
+              ? {
+                  text: { type: "plain_text", text: {
+                    "domestic_stock": "국내주식", "foreign_stock": "해외주식",
+                    "both_stock": "국내/해외주식", "financial": "금융상품",
+                    "pension": "연금", "etc": "기타"
+                  }[item.productType] || item.productType },
+                  value: item.productType,
+                }
+              : undefined,
+            placeholder: { type: "plain_text", text: "선택하세요" },
+            options: [
+              { text: { type: "plain_text", text: "국내주식" }, value: "domestic_stock" },
+              { text: { type: "plain_text", text: "해외주식" }, value: "foreign_stock" },
+              { text: { type: "plain_text", text: "국내/해외주식" }, value: "both_stock" },
+              { text: { type: "plain_text", text: "금융상품" }, value: "financial" },
+              { text: { type: "plain_text", text: "연금" }, value: "pension" },
+              { text: { type: "plain_text", text: "기타" }, value: "etc" },
+            ],
+          },
+        },
+        {
+          type: "input",
+          block_id: "purpose_block",
+          label: { type: "plain_text", text: "목적" },
+          element: {
+            type: "static_select",
+            action_id: "purpose",
+            initial_option: item.purpose
+              ? {
+                  text: { type: "plain_text", text: {
+                    "sales_marketing": "세일즈마케팅", "info": "정보제공(제도 등)",
+                    "service": "서비스활성화", "etc": "기타"
+                  }[item.purpose] || item.purpose },
+                  value: item.purpose,
+                }
+              : undefined,
+            placeholder: { type: "plain_text", text: "선택하세요" },
+            options: [
+              { text: { type: "plain_text", text: "세일즈마케팅" }, value: "sales_marketing" },
+              { text: { type: "plain_text", text: "정보제공(제도 등)" }, value: "info" },
+              { text: { type: "plain_text", text: "서비스활성화" }, value: "service" },
+              { text: { type: "plain_text", text: "기타" }, value: "etc" },
+            ],
+          },
+        },
+        {
+          type: "input",
           block_id: "start_date_block",
           label: { type: "plain_text", text: "노출시작 희망일자" },
           element: {
@@ -1060,6 +1117,40 @@ Object.keys(BANNER_TYPES).forEach((type) => {
           },
           {
             type: "input",
+            block_id: "product_type_block",
+            label: { type: "plain_text", text: "상품구분" },
+            element: {
+              type: "static_select",
+              action_id: "product_type",
+              placeholder: { type: "plain_text", text: "선택하세요" },
+              options: [
+                { text: { type: "plain_text", text: "국내주식" }, value: "domestic_stock" },
+                { text: { type: "plain_text", text: "해외주식" }, value: "foreign_stock" },
+                { text: { type: "plain_text", text: "국내/해외주식" }, value: "both_stock" },
+                { text: { type: "plain_text", text: "금융상품" }, value: "financial" },
+                { text: { type: "plain_text", text: "연금" }, value: "pension" },
+                { text: { type: "plain_text", text: "기타" }, value: "etc" },
+              ],
+            },
+          },
+          {
+            type: "input",
+            block_id: "purpose_block",
+            label: { type: "plain_text", text: "목적" },
+            element: {
+              type: "static_select",
+              action_id: "purpose",
+              placeholder: { type: "plain_text", text: "선택하세요" },
+              options: [
+                { text: { type: "plain_text", text: "세일즈마케팅" }, value: "sales_marketing" },
+                { text: { type: "plain_text", text: "정보제공(제도 등)" }, value: "info" },
+                { text: { type: "plain_text", text: "서비스활성화" }, value: "service" },
+                { text: { type: "plain_text", text: "기타" }, value: "etc" },
+              ],
+            },
+          },
+          {
+            type: "input",
             block_id: "start_date_block",
             label: { type: "plain_text", text: "노출시작 희망일자" },
             element: {
@@ -1136,6 +1227,8 @@ Object.keys(BANNER_TYPES).forEach((type) => {
       mediaType: v.media_type_block.media_type.selected_option?.value || "",
       banner: v.banner_block.banner.value,
       bannerDesc: v.banner_desc_block.banner_desc.value,
+      productType: v.product_type_block.product_type.selected_option?.value || "",
+      purpose: v.purpose_block.purpose.selected_option?.value || "",
       startDate: v.start_date_block.start_date.selected_date,
       endDate: v.end_date_block.end_date.selected_date,
       linkType: v.link_type_block.link_type.selected_option?.value || "",
@@ -1164,6 +1257,8 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
     mediaType: v.media_type_block.media_type.selected_option?.value || "",
     banner: v.banner_block.banner.value,
     bannerDesc: v.banner_desc_block.banner_desc.value,
+    productType: v.product_type_block.product_type.selected_option?.value || "",
+    purpose: v.purpose_block.purpose.selected_option?.value || "",
     startDate: v.start_date_block.start_date.selected_date,
     endDate: v.end_date_block.end_date.selected_date,
     linkType: v.link_type_block.link_type.selected_option?.value || "",
