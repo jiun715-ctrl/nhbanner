@@ -507,12 +507,19 @@ async function publishHome(userId) {
         { type: "divider" },
         {
           type: "actions",
-          elements: Object.entries(BANNER_TYPES).map(([type, label]) => ({
-            type: "button",
-            text: { type: "plain_text", text: label },
-            action_id: `open_banner_tab_${type}`,
-            value: type,
-          })),
+          elements: [
+            ...Object.entries(BANNER_TYPES).map(([type, label]) => ({
+              type: "button",
+              text: { type: "plain_text", text: label },
+              action_id: `open_banner_tab_${type}`,
+              value: type,
+            })),
+            {
+              type: "button",
+              text: { type: "plain_text", text: "👤 내예약보기" },
+              action_id: "my_reservations_all",
+            },
+          ],
         },
         { type: "divider" },
         {
@@ -557,12 +564,6 @@ async function publishBannerMain(userId, type) {
         text: { type: "plain_text", text: "➕ 등록하기" },
         style: "primary",
         action_id: `open_register_modal_${type}`,
-        value: type,
-      },
-      {
-        type: "button",
-        text: { type: "plain_text", text: "👤 내 예약 보기" },
-        action_id: "my_reservations",
         value: type,
       },
       {
@@ -625,13 +626,20 @@ async function publishBannerMain(userId, type) {
  * ====================================================== */
 
 async function publishMyReservations(userId, type) {
-  const allData = await loadBannerData(type);
-  const myList = allData.filter((item) => item.createdBy === userId);
+  // type이 있으면 해당 탭만, 없으면 전체
+  const targetTypes = type ? [type] : Object.keys(BANNER_TYPES);
+
+  const allMyItems = [];
+  for (const t of targetTypes) {
+    const data = await loadBannerData(t);
+    const mine = data.filter((item) => item.createdBy === userId);
+    mine.forEach((item) => allMyItems.push({ ...item, _type: t }));
+  }
 
   const blocks = [
     {
       type: "header",
-      text: { type: "plain_text", text: `👤 ${BANNER_TYPES[type]} 내 예약` },
+      text: { type: "plain_text", text: type ? `👤 ${BANNER_TYPES[type]} 내 예약` : "👤 내 예약 전체보기" },
     },
     { type: "divider" },
     {
@@ -640,27 +648,28 @@ async function publishMyReservations(userId, type) {
         {
           type: "button",
           text: { type: "plain_text", text: "⬅ 돌아가기" },
-          action_id: "back_to_banner_main",
-          value: type,
+          action_id: type ? "back_to_banner_main" : "go_home",
+          value: type || "home",
         },
       ],
     },
     { type: "divider" },
   ];
 
-  if (myList.length === 0) {
+  if (allMyItems.length === 0) {
     blocks.push({
       type: "section",
       text: { type: "mrkdwn", text: "등록한 예약이 없습니다." },
     });
   } else {
-    myList.forEach((item) => {
+    allMyItems.forEach((item) => {
+      const typeLabel = BANNER_TYPES[item._type] || item._type;
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
           text:
-            `*${item.banner}*\n` +
+            `*${item.banner}*  |  ${typeLabel}\n` +
             `${item.startDate} ~ ${item.endDate}\n` +
             `> ${item.bannerDesc || ""}`,
         },
@@ -669,8 +678,8 @@ async function publishMyReservations(userId, type) {
       blocks.push({
         type: "actions",
         elements: [
-          { type: "button", text: { type: "plain_text", text: "✏️ 수정" }, action_id: "edit_my_reservation", value: `${type}:${item.id}` },
-          { type: "button", text: { type: "plain_text", text: "🗑 삭제" }, style: "danger", action_id: "delete_reservation", value: `${type}:${item.id}` },
+          { type: "button", text: { type: "plain_text", text: "✏️ 수정" }, action_id: "edit_my_reservation", value: `${item._type}:${item.id}` },
+          { type: "button", text: { type: "plain_text", text: "🗑 삭제" }, style: "danger", action_id: "delete_reservation", value: `${item._type}:${item.id}` },
         ],
       });
 
@@ -705,6 +714,11 @@ app.action("my_reservations", async ({ ack, body }) => {
   const type = body.actions?.[0]?.value;
   if (!type) return;
   await publishMyReservations(body.user.id, type);
+});
+
+app.action("my_reservations_all", async ({ ack, body }) => {
+  await ack();
+  publishMyReservations(body.user.id, null).catch(e => console.log("publishMyReservations 실패:", e.message));
 });
 
 app.action("edit_my_reservation", async ({ ack, body, client }) => {
@@ -930,6 +944,7 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
     },
   });
 });
+
 
 app.action("delete_reservation", async ({ ack, body }) => {
   await ack();
