@@ -104,7 +104,12 @@ export default function AdminPage() {
         if (!start || !end) return false;
         return start <= monthEnd && end >= monthStart;
       })
-      .sort((a, b) => (a.priority || 0) - (b.priority || 0))
+      .sort((a, b) => {
+        // 🔥 N2(priority null)는 맨 뒤로
+        const pa = a.priority ?? 9999;
+        const pb = b.priority ?? 9999;
+        return pa - pb;
+      })
       .map((item, idx) => ({ no: idx + 1, ...item }));
   }, [allData, activeType, month]);
 
@@ -165,7 +170,7 @@ export default function AdminPage() {
     const wb = XLSX.utils.book_new();
     const rows = filtered.map((item) => ({
       No: item.no,
-      우선순위: item.priority,
+      우선순위: item.priority ?? "—",
       담당자: item.createdByName || "—",
       배너구분: getLabel(BANNER_TYPE_OPTIONS, item.bannerType),
       매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
@@ -452,6 +457,16 @@ function Field({ label, children }) {
 }
 
 function PriorityBadge({ value }) {
+  // 🔥 N2 (priority null/undefined) → "—" 표시
+  if (value == null) {
+    return (
+      <span style={{
+        display: "inline-block", minWidth: 28, padding: "3px 8px", borderRadius: 20,
+        fontSize: 12, fontWeight: 700, textAlign: "center",
+        color: "#94a3b8", background: "#f1f5f9", border: "1px solid #e2e8f0",
+      }}>—</span>
+    );
+  }
   const c = { 1: "#16a34a", 2: "#2563eb", 3: "#d97706", 4: "#db2777", 5: "#7c3aed" }[value] || "#64748b";
   return (
     <span style={{

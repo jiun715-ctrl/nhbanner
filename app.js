@@ -53,7 +53,6 @@ const BannerModel = {
   interest: mongoose.model("Interest", bannerSchema, "interest"),
 };
 
-/* 🔥 WEB_BASE_URL 안전 방어 */
 const BASE_URL =
   process.env.WEB_BASE_URL && process.env.WEB_BASE_URL.startsWith("http")
     ? process.env.WEB_BASE_URL
@@ -71,7 +70,6 @@ const BANNER_TYPES = {
   interest: "⭐ 관심그룹탭배너",
 };
 
-// 🔥 타입별 배너구분 자동 매핑
 const BANNER_TYPE_AUTO = {
   home: "01",
   floating: "03",
@@ -93,13 +91,14 @@ async function loadBannerData(type) {
   try {
     const model = BannerModel[type];
     if (!model) return [];
-
     const docs = await model.find({}).lean();
-
     return docs.map((doc, index) => {
       const clean = cleanDoc(doc);
       clean.id = clean.id || doc._id.toString();
-      clean.priority = clean.priority ?? (index + 1);
+      // N2는 priority null 유지, 그 외는 fallback
+      if (clean.mediaType !== "n2") {
+        clean.priority = clean.priority ?? (index + 1);
+      }
       return clean;
     });
   } catch (e) {
@@ -108,7 +107,6 @@ async function loadBannerData(type) {
   }
 }
 
-// 🔥 단건 추가
 async function addBannerItem(type, item) {
   try {
     const model = BannerModel[type];
@@ -121,7 +119,6 @@ async function addBannerItem(type, item) {
   }
 }
 
-// 🔥 단건 수정
 async function updateBannerItem(type, id, updates) {
   try {
     const model = BannerModel[type];
@@ -133,7 +130,6 @@ async function updateBannerItem(type, id, updates) {
   }
 }
 
-// 🔥 단건 삭제
 async function deleteBannerItem(type, id) {
   try {
     const model = BannerModel[type];
@@ -149,7 +145,6 @@ async function deleteBannerItem(type, id) {
   }
 }
 
-// 🔥 우선순위 일괄 업데이트
 async function updatePriorities(type, priorityMap) {
   try {
     const model = BannerModel[type];
@@ -166,6 +161,26 @@ async function updatePriorities(type, priorityMap) {
     console.log(`✅ updatePriorities(${type}) 완료: ${ops.length}건`);
   } catch (e) {
     console.log(`❌ updatePriorities(${type}) 실패:`, e.message);
+  }
+}
+
+/* ======================================================
+ * 🔥 N2 제외 우선순위 재정렬 유틸
+ * ====================================================== */
+
+async function recalcPriorities(type) {
+  const list = await loadBannerData(type);
+  const nonN2 = list.filter(item => item.mediaType !== "n2");
+  const priorityMap = [];
+  nonN2
+    .sort((a, b) => (a.priority || 0) - (b.priority || 0))
+    .forEach((item, idx) => {
+      if (item.priority !== idx + 1) {
+        priorityMap.push({ id: item.id, priority: idx + 1 });
+      }
+    });
+  if (priorityMap.length > 0) {
+    await updatePriorities(type, priorityMap);
   }
 }
 
@@ -230,8 +245,12 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
   const oldPriorityMap = {};
   list.forEach(item => { oldPriorityMap[item.id] = item.priority; });
-  const newPriority =
-    updatedData.priority !== undefined
+
+  // 🔥 N2인 경우 우선순위 null 처리
+  const isN2 = (updatedData.mediaType || oldItem.mediaType) === "n2";
+  const newPriority = isN2
+    ? null
+    : updatedData.priority !== undefined
       ? Number(updatedData.priority)
       : oldPriority;
 
@@ -253,25 +272,8 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
 
   await updateBannerItem(type, id, safeUpdate);
 
-  if (newPriority !== oldPriority) {
-    const reloadedList = await loadBannerData(type);
-    const priorityMap = [];
-    reloadedList
-      .sort((a, b) => {
-        if (a.priority !== b.priority) return a.priority - b.priority;
-        if (a.id === id) return -1;
-        if (b.id === id) return 1;
-        return 0;
-      })
-      .forEach((item, idx) => {
-        if (item.priority !== idx + 1) {
-          priorityMap.push({ id: item.id, priority: idx + 1 });
-        }
-      });
-    if (priorityMap.length > 0) {
-      await updatePriorities(type, priorityMap);
-    }
-  }
+  // 🔥 N2 제외 우선순위 재정렬
+  await recalcPriorities(type);
 
   const updatedList = await loadBannerData(type);
   const updatedItem = updatedList.find(i => i.id === id);
@@ -320,29 +322,28 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     console.log("Slack DM 실패:", e.message);
   }
 
-  if (newPriority !== oldPriority) {
-    try {
-      for (const item of updatedList) {
-        if (item.id === id) continue;
-        const oldP = oldPriorityMap[item.id];
-        const newP = item.priority;
-        if (oldP !== undefined && oldP !== newP) {
-          await app.client.chat.postMessage({
-            channel: item.createdBy,
-            text:
-              `📢 관리자에 의해 *"${item.banner}"* 게시물의 우선순위가 변경되었습니다.\n\n` +
-              `• 우선순위\n   ${oldP} → ${newP}`,
-          });
-        }
+  // 우선순위 변동 DM (N2 스킵)
+  try {
+    for (const item of updatedList) {
+      if (item.id === id) continue;
+      if (item.mediaType === "n2") continue;
+      const oldP = oldPriorityMap[item.id];
+      const newP = item.priority;
+      if (oldP !== undefined && oldP !== newP) {
+        await app.client.chat.postMessage({
+          channel: item.createdBy,
+          text:
+            `📢 관리자에 의해 *"${item.banner}"* 게시물의 우선순위가 변경되었습니다.\n\n` +
+            `• 우선순위\n   ${oldP} → ${newP}`,
+        });
       }
-    } catch (e) {
-      console.log("우선순위 변경 DM 실패:", e.message);
     }
+  } catch (e) {
+    console.log("우선순위 변경 DM 실패:", e.message);
   }
 
   try {
     const uniqueUsers = [...new Set(updatedList.map(i => i.createdBy))];
-
     for (const userId of uniqueUsers) {
       try {
         await publishBannerMain(userId, type);
@@ -373,18 +374,8 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
 
   await deleteBannerItem(type, id);
 
-  const newList = await loadBannerData(type);
-  const priorityMap = [];
-  newList
-    .sort((a, b) => a.priority - b.priority)
-    .forEach((item, idx) => {
-      if (item.priority !== idx + 1) {
-        priorityMap.push({ id: item.id, priority: idx + 1 });
-      }
-    });
-  if (priorityMap.length > 0) {
-    await updatePriorities(type, priorityMap);
-  }
+  // 🔥 N2 제외 우선순위 재정렬
+  await recalcPriorities(type);
 
   try {
     await app.client.chat.postMessage({
@@ -395,12 +386,13 @@ receiver.router.delete("/api/admin/delete/:type/:id", async (req, res) => {
     console.log("Slack DM 실패:", e.message);
   }
 
+  const newList = await loadBannerData(type);
+
   try {
     const allUsers = [...new Set(newList.map(i => i.createdBy))];
     if (!allUsers.includes(target.createdBy)) {
       allUsers.push(target.createdBy);
     }
-
     for (const userId of allUsers) {
       try {
         await publishBannerMain(userId, type);
@@ -458,10 +450,8 @@ function getThisWeekDates() {
   const today = new Date();
   const day = today.getDay();
   const diffToMonday = (day === 0 ? -6 : 1) - day;
-
   const monday = new Date(today);
   monday.setDate(today.getDate() + diffToMonday);
-
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
@@ -518,11 +508,14 @@ async function publishHome(userId) {
 }
 
 /* ======================================================
- * 배너 메인 화면 (주간리스트)
+ * 배너 메인 화면 (주간리스트) — 🔥 N2 제외
  * ====================================================== */
 
 async function publishBannerMain(userId, type) {
   const allData = await loadBannerData(type);
+
+  // 🔥 주간 스케줄에서 N2 제외
+  const calendarData = allData.filter(item => item.mediaType !== "n2");
 
   const dates = getThisWeekDates();
   const ranks = Array.from({ length: 7 }, (_, i) => i + 1);
@@ -570,7 +563,7 @@ async function publishBannerMain(userId, type) {
     const d = String(date.getDate()).padStart(2, "0");
     const yyyyMMdd = `${y}-${m}-${d}`;
 
-    const dayItems = allData.filter(
+    const dayItems = calendarData.filter(
       (item) => item.startDate <= yyyyMMdd && item.endDate >= yyyyMMdd
     );
 
@@ -642,13 +635,17 @@ async function publishMyReservations(userId, type) {
   } else {
     allMyItems.forEach((item) => {
       const typeLabel = BANNER_TYPES[item._type] || item._type;
+      const mediaLabel = { "common": "공통", "tree": "나무", "n2": "N2" }[item.mediaType] || item.mediaType || "";
+      // 🔥 N2는 우선순위 "—" 표시
+      const priorityText = item.mediaType === "n2" ? "우선순위: —" : `우선순위: ${item.priority || "—"}`;
+
       blocks.push({
         type: "section",
         text: {
           type: "mrkdwn",
           text:
-            `*${item.banner}*  |  ${typeLabel}\n` +
-            `${item.startDate} ~ ${item.endDate}\n` +
+            `*${item.banner}*  |  ${typeLabel}  |  ${mediaLabel}\n` +
+            `${item.startDate} ~ ${item.endDate}  |  ${priorityText}\n` +
             `> ${item.bannerDesc || ""}`,
         },
       });
@@ -751,6 +748,7 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
           element: {
             type: "plain_text_input",
             action_id: "banner",
+            multiline: true,
             initial_value: item.banner || "",
             placeholder: { type: "plain_text", text: "플로팅 배너인 경우 반드시 줄바꿈 심볼을 넣어주세요. ex. 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
           },
@@ -762,7 +760,6 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
           element: {
             type: "plain_text_input",
             action_id: "banner_desc",
-            multiline: true,
             initial_value: item.bannerDesc || "",
             placeholder: { type: "plain_text", text: "이제 환전 걱정할 필요 없어요" },
           },
@@ -872,6 +869,7 @@ app.action("edit_my_reservation", async ({ ack, body, client }) => {
           element: {
             type: "plain_text_input",
             action_id: "link_url",
+            multiline: true,
             initial_value: item.linkUrl || "",
             placeholder: { type: "plain_text", text: "노출 4일 전 알림이 갈 예정입니다. 알림을 받으실 경우 실제 링크를 입력해주세요." },
           },
@@ -894,18 +892,8 @@ app.action("delete_reservation", async ({ ack, body }) => {
   (async () => {
     await deleteBannerItem(type, id);
 
-    const newList = await loadBannerData(type);
-    const priorityMap = [];
-    newList
-      .sort((a, b) => a.priority - b.priority)
-      .forEach((item, idx) => {
-        if (item.priority !== idx + 1) {
-          priorityMap.push({ id: item.id, priority: idx + 1 });
-        }
-      });
-    if (priorityMap.length > 0) {
-      await updatePriorities(type, priorityMap);
-    }
+    // 🔥 N2 제외 우선순위 재정렬
+    await recalcPriorities(type);
 
     await publishMyReservations(userId, type);
   })().catch(e => console.log("delete_reservation 실패:", e.message));
@@ -988,6 +976,8 @@ app.action("open_admin_page", async ({ ack }) => {
 
 /* ======================================================
  * 등록 모달 (매체유형: 공통/나무/N2)
+ * 🔥 배너명: multiline, 배너내용: 단일줄, 이벤트이미지url: multiline
+ * 🔥 N2 등록 시 priority = null
  * ====================================================== */
 
 Object.keys(BANNER_TYPES).forEach((type) => {
@@ -1025,6 +1015,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             element: {
               type: "plain_text_input",
               action_id: "banner",
+              multiline: true,
               placeholder: { type: "plain_text", text: "플로팅 배너인 경우 반드시 줄바꿈 심볼을 넣어주세요. ex. 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
             },
           },
@@ -1035,7 +1026,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             element: {
               type: "plain_text_input",
               action_id: "banner_desc",
-              multiline: true,
               placeholder: { type: "plain_text", text: "이제 환전 걱정할 필요 없어요" },
             },
           },
@@ -1115,6 +1105,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
             element: {
               type: "plain_text_input",
               action_id: "link_url",
+              multiline: true,
               placeholder: { type: "plain_text", text: "노출 4일 전 알림이 갈 예정입니다. 알림을 받으실 경우 실제 링크를 입력해주세요." },
             },
           },
@@ -1127,19 +1118,24 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     await ack();
 
     const v = view.state.values;
+    const mediaType = v.media_type_block.media_type.selected_option?.value || "";
+    const isN2 = mediaType === "n2";
+
     const list = await loadBannerData(type);
 
+    // 🔥 N2 제외하고 최대 우선순위 계산
+    const nonN2List = list.filter(item => item.mediaType !== "n2");
     const maxPriority =
-      list.length > 0
-        ? Math.max(...list.map((i) => i.priority || 0))
+      nonN2List.length > 0
+        ? Math.max(...nonN2List.map((i) => i.priority || 0))
         : 0;
 
     const newItem = {
       id: Date.now().toString(),
-      priority: maxPriority + 1,
+      priority: isN2 ? null : maxPriority + 1,
       eventCode: "",
       bannerType: BANNER_TYPE_AUTO[type] || "00",
-      mediaType: v.media_type_block.media_type.selected_option?.value || "",
+      mediaType,
       banner: v.banner_block.banner.value,
       bannerDesc: v.banner_desc_block.banner_desc.value,
       productType: v.product_type_block.product_type.selected_option?.value || "",
@@ -1164,8 +1160,11 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
   const { id, type } = JSON.parse(view.private_metadata);
   const v = view.state.values;
 
+  const mediaType = v.media_type_block.media_type.selected_option?.value || "";
+  const isN2 = mediaType === "n2";
+
   await updateBannerItem(type, id, {
-    mediaType: v.media_type_block.media_type.selected_option?.value || "",
+    mediaType,
     banner: v.banner_block.banner.value,
     bannerDesc: v.banner_desc_block.banner_desc.value,
     productType: v.product_type_block.product_type.selected_option?.value || "",
@@ -1174,8 +1173,12 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
     endDate: v.end_date_block.end_date.selected_date,
     linkType: v.link_type_block.link_type.selected_option?.value || "",
     linkUrl: v.link_url_block?.link_url?.value || "",
+    priority: isN2 ? null : undefined,
     updatedAt: new Date().toISOString(),
   });
+
+  // 🔥 N2 제외 우선순위 재정렬
+  await recalcPriorities(type);
 
   publishBannerMain(body.user.id, type).catch(e => console.log("publishBannerMain 실패:", e.message));
   publishMyReservations(body.user.id, type).catch(e => console.log("publishMyReservations 실패:", e.message));
