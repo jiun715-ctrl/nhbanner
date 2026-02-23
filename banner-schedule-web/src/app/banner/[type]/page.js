@@ -142,21 +142,29 @@ export default function BannerPage() {
     setSelectedDate(null);
   }
 
-  const maxSlots = isInterest ? 6 : 7;
+  const maxSlots = isInterest ? 8 : 7;
 
-  const selectedDayItems = selectedDate
-    ? calendarBanners
-        .filter(b => b.startDate <= selectedDate && b.endDate >= selectedDate)
-        .sort((a, b) => {
-          if (isInterest) {
-            const ia = INTEREST_SLOT_VALUES.indexOf(a.desiredTab);
-            const ib = INTEREST_SLOT_VALUES.indexOf(b.desiredTab);
-            return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-          }
-          return (a.priority || 99) - (b.priority || 99);
-        })
-        .slice(0, maxSlots)
-    : [];
+  const selectedDayItems = useMemo(() => {
+    if (!selectedDate) return [];
+    const items = calendarBanners
+      .filter(b => b.startDate <= selectedDate && b.endDate >= selectedDate);
+
+    if (isInterest) {
+      // 고정 5슬롯 (etc 제외) desiredTab 순서대로
+      const fixedValues = INTEREST_SLOT_VALUES.filter(v => v !== "etc");
+      const fixed = fixedValues.map(v => items.find(i => i.desiredTab === v)).filter(Boolean);
+      // 기타 3개 (등록순)
+      const etcItems = items
+        .filter(i => i.desiredTab === "etc")
+        .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))
+        .slice(0, 3);
+      return [...fixed, ...etcItems];
+    }
+
+    return items
+      .sort((a, b) => (a.priority || 99) - (b.priority || 99))
+      .slice(0, 7);
+  }, [selectedDate, calendarBanners, isInterest]);
 
   return (
     <div className="min-h-screen bg-zinc-50 px-6 py-8 dark:bg-black">
@@ -211,18 +219,22 @@ export default function BannerPage() {
             const isCurrentMonth = date.getMonth() === month;
             const isToday = dateStr === todayStr;
 
-            const dayItems = calendarBanners
-              .filter(b => b.startDate <= dateStr && b.endDate >= dateStr)
-              .sort((a, b) => {
-                if (isInterest) {
-                  const ia = INTEREST_SLOT_VALUES.indexOf(a.desiredTab);
-                  const ib = INTEREST_SLOT_VALUES.indexOf(b.desiredTab);
-                  return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-                }
-                return (a.priority || 99) - (b.priority || 99);
-              });
+            const dayItems = (() => {
+              const raw = calendarBanners
+                .filter(b => b.startDate <= dateStr && b.endDate >= dateStr);
+              if (isInterest) {
+                const fixedValues = INTEREST_SLOT_VALUES.filter(v => v !== "etc");
+                const fixed = fixedValues.map(v => raw.find(i => i.desiredTab === v)).filter(Boolean);
+                const etcItems = raw
+                  .filter(i => i.desiredTab === "etc")
+                  .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))
+                  .slice(0, 3);
+                return [...fixed, ...etcItems];
+              }
+              return raw.sort((a, b) => (a.priority || 99) - (b.priority || 99));
+            })();
 
-            const visible = dayItems.slice(0, isInterest ? 6 : 5);
+            const visible = dayItems.slice(0, isInterest ? 8 : 5);
             const hasWaiting = isInterest ? false : dayItems.length > 5;
 
             return (
@@ -277,8 +289,13 @@ export default function BannerPage() {
                   const isWaiting = isInterest ? false : index >= 5;
                   let rankLabel;
                   if (isInterest) {
-                    const tabOpt = INTEREST_TAB_OPTIONS.find(o => o.value === item.desiredTab);
-                    rankLabel = tabOpt ? tabOpt.label : `슬롯${index + 1}`;
+                    if (index < 5) {
+                      const fixedValues = INTEREST_SLOT_VALUES.filter(v => v !== "etc");
+                      const tabOpt = INTEREST_TAB_OPTIONS.find(o => o.value === (item.desiredTab || fixedValues[index]));
+                      rankLabel = tabOpt ? tabOpt.label : `슬롯${index + 1}`;
+                    } else {
+                      rankLabel = `기타 ${index - 4} (그 외 빈 구좌)`;
+                    }
                   } else {
                     rankLabel = isWaiting
                       ? `대기 ${index - 4}`
@@ -291,7 +308,7 @@ export default function BannerPage() {
                       className={`rounded px-3 py-2 text-sm ${bannerColorMap[getColorKey(item)]}`}
                     >
                       <div className="flex items-center gap-2 font-medium">
-                        <span className={`inline-block ${isInterest ? "min-w-[100px]" : "min-w-[52px]"} rounded px-1.5 py-0.5 text-xs font-bold ${
+                        <span className={`inline-block ${isInterest ? "min-w-[160px]" : "min-w-[52px]"} rounded px-1.5 py-0.5 text-xs font-bold ${
                           isWaiting
                             ? "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300"
                             : "bg-white/60 text-zinc-700 dark:bg-black/30 dark:text-zinc-200"

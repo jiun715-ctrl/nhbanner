@@ -580,16 +580,21 @@ async function publishBannerMain(userId, type) {
     let lines;
 
     if (isInterest) {
-      // 🔥 desiredTab 기준 슬롯 매칭
-      lines = INTEREST_TAB_OPTIONS.map((tab) => {
+      // 🔥 고정 5슬롯 + 기타 3슬롯 = 총 8개
+      const fixedTabs = INTEREST_TAB_OPTIONS.filter(o => o.value !== "etc");
+      lines = fixedTabs.map((tab) => {
         const found = dayItems.find(item => item.desiredTab === tab.value);
-        const displayName = found
-          ? (tab.value === "etc" && found.desiredTabCustom
-              ? found.desiredTabCustom
-              : "등록됨")
-          : "—";
-        return `${tab.label}  ${displayName}`;
+        return `${tab.label}  ${found ? "등록됨" : "—"}`;
       });
+      // 기타 슬롯 3개
+      const etcItems = dayItems
+        .filter(item => item.desiredTab === "etc")
+        .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
+      for (let i = 0; i < 3; i++) {
+        const found = etcItems[i];
+        const customName = found?.desiredTabCustom || "";
+        lines.push(`기타 ${i + 1} (그 외 빈 구좌)  ${customName || "—"}`);
+      }
     } else {
       const sorted = [...dayItems].sort(
         (a, b) => (a.priority || 0) - (b.priority || 0)
