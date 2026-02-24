@@ -239,8 +239,9 @@ export default function BannerPage() {
               return raw.sort((a, b) => (a.priority || 99) - (b.priority || 99));
             })();
 
-            const visible = dayItems.slice(0, isInterest ? 8 : 5);
-            const hasWaiting = isInterest ? false : dayItems.length > 5;
+            const maxVisible = isInterest ? 8 : 5;
+            const visible = dayItems.slice(0, maxVisible);
+            const hasMore = dayItems.length > maxVisible;
 
             return (
               <div
@@ -266,9 +267,9 @@ export default function BannerPage() {
                     </div>
                   ))}
 
-                  {hasWaiting && (
+                  {hasMore && (
                     <div className="text-[11px] font-medium text-zinc-500">
-                      + 대기 있음
+                      + 더 있음
                     </div>
                   )}
                 </div>
@@ -321,7 +322,7 @@ export default function BannerPage() {
                           {rankLabel}
                         </span>
                         {getDisplayName(item)}
-                        {!isInterest && (
+                        {item.mediaType && item.mediaType !== "n2" && (
                           <span className="ml-1 text-[11px] font-normal opacity-60">
                             ({item.mediaType === "tree" ? "나무" : "공통"})
                           </span>

@@ -67,7 +67,7 @@ console.log("🌐 WEB BASE URL:", BASE_URL);
  * ====================================================== */
 
 const BANNER_TYPES = {
-  home: "🏠 홈배너",
+  home: "🏠 홈상단배너",
   floating: "📌 플로팅배너",
   interest: "⭐ 관심그룹탭배너",
 };
