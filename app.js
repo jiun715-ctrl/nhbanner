@@ -1018,6 +1018,7 @@ function buildModalBlocks(type, item) {
     type: "input",
     block_id: "start_date_block",
     label: { type: "plain_text", text: "노출시작 희망일자" },
+    hint: { type: "plain_text", text: "오늘 포함 이후로만 등록이 가능합니다." },
     element: {
       type: "datepicker",
       action_id: "start_date",
@@ -1030,6 +1031,7 @@ function buildModalBlocks(type, item) {
     type: "input",
     block_id: "end_date_block",
     label: { type: "plain_text", text: "노출종료 희망일자" },
+    hint: { type: "plain_text", text: "고객 피로도 조절 차원에서 홈상단/관심배너탭은 최대 7일, 플로팅배너는 최대 3일만 가능합니다\n그 이상을 원하실 경우 추가로 배너를 등록해주세요"},
     element: {
       type: "datepicker",
       action_id: "end_date",
