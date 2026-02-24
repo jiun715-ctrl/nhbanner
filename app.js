@@ -67,7 +67,7 @@ console.log("🌐 WEB BASE URL:", BASE_URL);
  * ====================================================== */
 
 const BANNER_TYPES = {
-  home: "🏠 홈상단배너",
+  home: "🏠 홈배너",
   floating: "📌 플로팅배너",
   interest: "⭐ 관심그룹탭배너",
 };
@@ -91,6 +91,16 @@ const INTEREST_TAB_OPTIONS = [
 const INTEREST_RANK_LABELS = INTEREST_TAB_OPTIONS.map(o => o.label);
 
 const INTEREST_SLOT_VALUES = INTEREST_TAB_OPTIONS.map(o => o.value);
+
+/* 🔥 배너 타입별 최대 노출일수 */
+const MAX_EXPOSURE_DAYS = {
+  home: 7,
+  floating: 3,
+  interest: 7,
+};
+
+/* 🔥 관리자 Slack User ID (등록 알림 수신) */
+const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "";
 
 function getDesiredTabLabel(value) {
   const found = INTEREST_TAB_OPTIONS.find(o => o.value === value);
@@ -466,6 +476,11 @@ function getDisplayWidth(str) {
   return w;
 }
 
+/* 🔥 KST 오늘 날짜 (YYYY-MM-DD) */
+function getTodayKST() {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
 function getThisWeekDates() {
   const today = new Date();
   const day = today.getDay();
@@ -491,7 +506,7 @@ async function publishHome(userId) {
       blocks: [
         {
           type: "header",
-          text: { type: "plain_text", text: "📢 배너 희망일정 신청하기" },
+          text: { type: "plain_text", text: "📢 배너 스케줄 등록하기" },
         },
         { type: "divider" },
         {
@@ -516,7 +531,7 @@ async function publishHome(userId) {
           elements: [
             {
               type: "button",
-              text: { type: "plain_text", text: "🔐 관리자페이지" },
+              text: { type: "plain_text", text: "🔐 관리자전용" },
               action_id: "open_admin_password",
               style: "danger",
             },
@@ -525,7 +540,7 @@ async function publishHome(userId) {
         { type: "divider" },
         {
           type: "header",
-          text: { type: "plain_text", text: "📌 배너 신청 그라운드 룰" },
+          text: { type: "plain_text", text: "📌 배너 운영 그라운드 룰" },
         },
         {
           type: "section",
@@ -535,7 +550,7 @@ async function publishHome(userId) {
               "*1. 배너 안내*\n" +
               "  • *[홈상단 배너]* 홈 화면 상단에 노출 | 최대 5개 (✕ 버튼 누를 경우)\n" +
               "  • *[플로팅 배너]* 화면 하단 팝업 형식 노출 | 최대 5개 (슬라이드 할 경우)\n" +
-              "  • *[관심그룹 배너]* 각 탭별 하단 종목 리스트 중간에 배너형으로 노출 | 탭별 1개만 노출",
+              "  • *[관심그룹 배너]* 관심그룹 화면 각 탭별 종목 리스트 중간 노출 | 탭별 1개만 노출",
           },
         },
         { type: "divider" },
@@ -546,9 +561,9 @@ async function publishHome(userId) {
             text:
               "*2. 신청 기간*\n" +
               "  • *[본 신청]* 매월 1일 ~ 마지막 목요일\n" +
-              "     → 익월 희망 기간에 배너 반영(=선택 가능 기간: 익월 1일 ~ 말일)\n" +
+              "     → 익월 희망 기간에 배너 반영\n" +
               "  • *[추가 신청]* 마지막 금요일 ~ 익월 두 번째 목요일\n" +
-              "     → 익월 두 번째 목요일에 일괄 반영(=선택 가능 기간: 익월 두 번째 금요일 ~ 말일)\n" +
+              "     → 익월 두 번째 금요일부터 반영 (1일~두 번째 목요일은 지연신청 패널티로 불가)\n" +
               "  • *[긴급 신청]* 요청 시 관리자 검토 후 희망일 반영 (제도 개편, 긴급 공지 등)",
           },
         },
@@ -562,8 +577,8 @@ async function publishHome(userId) {
               "  • *[홈상단 배너]* 최대 7일\n" +
               "  • *[플로팅 배너]* 최대 3일\n" +
               "  • *[관심종목탭]* 최대 7일\n" +
-              "  ⚠️ [공통] 같은 월 2회 이상 유사배너 노출 시, 3번째부터 후순위 변경 가능\n" +
-              "              단, 2순위 신청자가 있을 경우에 한함, 배너 유사 여부는 관리자 판단)",
+              "      ⚠️ (공통) 같은 월 2회 이상 유사배너 노출 시, 3번째부터 후순위 변경 가능\n" +
+              "                  (2순위 신청자가 있을 경우에 한함, 유사 여부는 관리자 판단)",
           },
         },
         { type: "divider" },
@@ -584,10 +599,10 @@ async function publishHome(userId) {
             type: "mrkdwn",
             text:
               "*5. 등록 시 주의사항*\n" +
-              "  • 모든 신청건이 확정되는 것은 아님. 본신청 마감(마지막 목요일) 이후 익월 캘린더에는 1차 확정본만 남게 됨.\n" +
-              "  • 추가신청 마감(익월 두 번째 목요일) 이후에는 해당월의 최종 확정본만 남게 됨.\n" +
-              "  • 추후 상품종류(국내주식, 해외주식 등), 목적(세일즈, 제도개선 안내 등), 전환율 등\n" +
-              "     사용자/관리자 논의 하에 운영상황에 따라 우선순위 선정기준이 변경될 수 있음.",
+              "  • 모든 신청건이 확정되는 것은 아님. 본신청 마감(마지막 목요일) 이후 익월 캘린더에 1차 확정본만 남게 됨\n" +
+              "      추가신청 마감(익월 두 번째 목요일) 이후에는 해당월 최종 확정본만 남게 됨.\n" +
+              "  • 추후 상품종류(국내/해외주식 등), 목적(세일즈, 제도개선 안내 등), 전환율 등 운영상황에 따라\n" +
+              "      관리자/사용자 간 논의 하에 우선순위 기준이 변경될 수 있습니다.",
           },
         },
       ],
@@ -1214,10 +1229,35 @@ Object.keys(BANNER_TYPES).forEach((type) => {
   });
 
   app.view(`register_modal_${type}`, async ({ ack, view, body }) => {
-    await ack();
-
     const v = view.state.values;
     const isInterest = type === "interest";
+
+    // 🔥 날짜 유효성 검사 (시작일: 오늘 이후, 종료일: 최대 노출일 이내)
+    const startDate = v.start_date_block.start_date.selected_date;
+    const endDate = v.end_date_block.end_date.selected_date;
+    const todayKST = getTodayKST();
+
+    const errors = {};
+    if (startDate < todayKST) {
+      errors.start_date_block = "시작일은 오늘 이후로 설정해주세요.";
+    }
+    if (endDate < startDate) {
+      errors.end_date_block = "종료일은 시작일 이후로 설정해주세요.";
+    }
+    const maxDays = MAX_EXPOSURE_DAYS[type] || 7;
+    if (startDate && endDate) {
+      const diffDays = Math.round((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+      if (diffDays > maxDays) {
+        errors.end_date_block = `노출 기간은 시작일 포함 최대 ${maxDays}일까지 가능합니다. (현재 ${diffDays}일)`;
+      }
+    }
+    if (Object.keys(errors).length > 0) {
+      await ack({ response_action: "errors", errors });
+      return;
+    }
+
+    await ack();
+
     const mediaType = v.media_type_block.media_type.selected_option?.value || "";
     const isN2 = mediaType === "n2";
 
@@ -1250,6 +1290,28 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     };
 
     await addBannerItem(type, newItem);
+
+    // 🔥 관리자에게 등록 알림 DM
+    if (ADMIN_USER_ID && ADMIN_USER_ID !== body.user.id) {
+      try {
+        const displayName = isInterest
+          ? getDesiredTabLabel(newItem.desiredTab) + (newItem.desiredTabCustom ? ` (${newItem.desiredTabCustom})` : "")
+          : newItem.banner || "—";
+        const userName = await getSlackUserName(body.user.id);
+        await app.client.chat.postMessage({
+          channel: ADMIN_USER_ID,
+          text:
+            `📬 새 배너가 등록되었습니다.\n\n` +
+            `• 유형: ${BANNER_TYPES[type]}\n` +
+            `• 배너: ${displayName}\n` +
+            `• 기간: ${newItem.startDate} ~ ${newItem.endDate}\n` +
+            `• 등록자: ${userName}`,
+        });
+      } catch (e) {
+        console.log("관리자 DM 실패:", e.message);
+      }
+    }
+
     publishBannerMain(body.user.id, type).catch(e => console.log("publishBannerMain 실패:", e.message));
   });
 });
@@ -1259,21 +1321,51 @@ Object.keys(BANNER_TYPES).forEach((type) => {
  * ====================================================== */
 
 app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
-  await ack();
-
   const { id, type } = JSON.parse(view.private_metadata);
   const v = view.state.values;
   const isInterest = type === "interest";
 
+  // 🔥 날짜 유효성 검사
+  const startDate = v.start_date_block.start_date.selected_date;
+  const endDate = v.end_date_block.end_date.selected_date;
+  const todayKST = getTodayKST();
+
+  const errors = {};
+  if (startDate < todayKST) {
+    errors.start_date_block = "시작일은 오늘 이후로 설정해주세요.";
+  }
+  if (endDate < startDate) {
+    errors.end_date_block = "종료일은 시작일 이후로 설정해주세요.";
+  }
+  const maxDays = MAX_EXPOSURE_DAYS[type] || 7;
+  if (startDate && endDate) {
+    const diffDays = Math.round((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24)) + 1;
+    if (diffDays > maxDays) {
+      errors.end_date_block = `노출 기간은 시작일 포함 최대 ${maxDays}일까지 가능합니다. (현재 ${diffDays}일)`;
+    }
+  }
+  if (Object.keys(errors).length > 0) {
+    await ack({ response_action: "errors", errors });
+    return;
+  }
+
+  await ack();
+
   const mediaType = v.media_type_block.media_type.selected_option?.value || "";
   const isN2 = mediaType === "n2";
+
+  // 🔥 날짜 변경 여부 확인 → 해당일 기존 배너 있으면 후순위
+  const list = await loadBannerData(type);
+  const oldItem = list.find(i => i.id === id);
+  const datesChanged = oldItem &&
+    (startDate !== oldItem.startDate || endDate !== oldItem.endDate);
 
   const updates = {
     mediaType,
     productType: v.product_type_block.product_type.selected_option?.value || "",
     purpose: v.purpose_block.purpose.selected_option?.value || "",
-    startDate: v.start_date_block.start_date.selected_date,
-    endDate: v.end_date_block.end_date.selected_date,
+    startDate,
+    endDate,
     linkType: v.link_type_block.link_type.selected_option?.value || "",
     linkUrl: v.link_url_block?.link_url?.value || "",
     priority: isN2 ? null : undefined,
@@ -1288,12 +1380,77 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
     updates.bannerDesc = v.banner_desc_block?.banner_desc?.value || "";
   }
 
+  // 🔥 날짜 변경 + 해당일 기존 배너 존재 시 → 후순위 배정
+  if (datesChanged && !isN2) {
+    const overlapping = list.filter(i =>
+      i.id !== id &&
+      i.mediaType !== "n2" &&
+      i.startDate <= endDate &&
+      i.endDate >= startDate
+    );
+    if (overlapping.length > 0) {
+      const nonN2Others = list.filter(i => i.mediaType !== "n2" && i.id !== id);
+      const maxP = nonN2Others.length > 0
+        ? Math.max(...nonN2Others.map(i => i.priority || 0))
+        : 0;
+      updates.priority = maxP + 1;
+    }
+  }
+
   await updateBannerItem(type, id, updates);
   await recalcPriorities(type);
 
   publishBannerMain(body.user.id, type).catch(e => console.log("publishBannerMain 실패:", e.message));
   publishMyReservations(body.user.id, type).catch(e => console.log("publishMyReservations 실패:", e.message));
 });
+
+/* ======================================================
+ * 🔔 4일 전 리마인더 DM (1시간마다 체크, 하루 1회 발송)
+ * ====================================================== */
+
+let lastReminderCheckDate = "";
+
+async function checkReminders() {
+  try {
+    const todayStr = getTodayKST();
+
+    // 하루에 한 번만 실행
+    if (lastReminderCheckDate === todayStr) return;
+    lastReminderCheckDate = todayStr;
+
+    // 4일 뒤 날짜 계산
+    const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+    const target = new Date(kstNow);
+    target.setDate(target.getDate() + 4);
+    const targetStr = target.toISOString().slice(0, 10);
+
+    console.log(`🔔 리마인더 체크: 오늘=${todayStr}, 대상시작일=${targetStr}`);
+
+    for (const type of Object.keys(BANNER_TYPES)) {
+      const data = await loadBannerData(type);
+      for (const item of data) {
+        if (item.startDate === targetStr) {
+          const displayName = item.banner
+            || getDesiredTabLabel(item.desiredTab)
+            || "배너";
+          try {
+            await app.client.chat.postMessage({
+              channel: item.createdBy,
+              text:
+                `📢 *"${displayName}"* 노출 시작 4일 전입니다.\n` +
+                `이미지URL을 포함하여 최종 확정된 내용으로 수정해주세요.`,
+            });
+            console.log(`✅ 리마인더 발송: ${displayName} → ${item.createdBy}`);
+          } catch (e) {
+            console.log(`❌ 리마인더 DM 실패 (${item.createdBy}):`, e.message);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.log("❌ checkReminders 실패:", e.message);
+  }
+}
 
 /* ======================================================
  * 서버 실행
@@ -1303,4 +1460,8 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
   const PORT = process.env.PORT || 3000;
   await app.start(PORT);
   console.log(`⚡ Slack App 실행중 (port ${PORT})`);
+
+  // 🔔 리마인더: 1시간마다 체크, 서버 시작 15초 후 첫 체크
+  setInterval(checkReminders, 60 * 60 * 1000);
+  setTimeout(checkReminders, 15000);
 })();
