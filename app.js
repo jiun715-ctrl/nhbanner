@@ -467,12 +467,19 @@ function formatMMDD(date) {
   return `${mm}/${dd}`;
 }
 
-/* 🔥 고정폭 정렬용: 한글 2칸, 그 외 1칸 */
 function getDisplayWidth(str) {
   let w = 0;
+  let upperCount = 0;
   for (const ch of str) {
-    w += ch.charCodeAt(0) > 0x7f ? 2 : 1;
+    if (ch.charCodeAt(0) > 0x7f) {
+      w += 2;
+    } else {
+      w += 1;
+      if (ch >= 'A' && ch <= 'Z') upperCount++;
+    }
   }
+  // Slack 코드블록 폰트 보정: 대문자 3자당 +1 (패딩 줄임)
+  w += Math.floor(upperCount / 3);
   return w;
 }
 
@@ -626,7 +633,7 @@ async function publishBannerMain(userId, type) {
   const blocks = [
     {
       type: "header",
-      text: { type: "plain_text", text: `${BANNER_TYPES[type]} 관리` },
+      text: { type: "plain_text", text: `${BANNER_TYPES[type]} 신청 상세 페이지` },
     },
     { type: "divider" },
   ];
