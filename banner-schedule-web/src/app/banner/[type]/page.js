@@ -101,19 +101,19 @@ export default function BannerPage() {
   const isInterest = type === "interest";
 
   const bannerColorMap = useMemo(() => {
-    const map = {};
-    let idx = 0;
+      const map = {};
+      let idx = 0;
 
-    calendarBanners.forEach(b => {
-      const key = b.banner || (isInterest && b.desiredTab ? b.desiredTab : `slot_${b.priority || idx}`);
-      if (!map[key]) {
-        map[key] = COLOR_CLASSES[idx % COLOR_CLASSES.length];
-        idx++;
-      }
-    });
+      calendarBanners.forEach(b => {
+        const key = getColorKey(b);
+        if (!map[key]) {
+          map[key] = COLOR_CLASSES[idx % COLOR_CLASSES.length];
+          idx++;
+        }
+      });
 
-    return map;
-  }, [calendarBanners, isInterest]);
+      return map;
+    }, [calendarBanners, isInterest]);
 
   function getDisplayName(item) {
     if (item.banner) return item.banner;
@@ -129,12 +129,11 @@ export default function BannerPage() {
 
   function getColorKey(item) {
     if (item.banner) return item.banner;
-    if (type === "interest" && item.desiredTab) {
-      // 기타는 각각 다른 색상 키 부여
+    if (type === "interest") {
       if (item.desiredTab === "etc") {
-        return `etc_${item.desiredTabCustom || item.id || item.priority}`;
+        return `etc_${item.desiredTabCustom || item.id}`;
       }
-      return item.desiredTab;
+      return item.desiredTab || item.id;
     }
     return `slot_${item.priority || 0}`;
   }
