@@ -457,6 +457,15 @@ function formatMMDD(date) {
   return `${mm}/${dd}`;
 }
 
+/* 🔥 고정폭 정렬용: 한글 2칸, 그 외 1칸 */
+function getDisplayWidth(str) {
+  let w = 0;
+  for (const ch of str) {
+    w += ch.charCodeAt(0) > 0x7f ? 2 : 1;
+  }
+  return w;
+}
+
 function getThisWeekDates() {
   const today = new Date();
   const day = today.getDay();
@@ -648,21 +657,27 @@ async function publishBannerMain(userId, type) {
     let lines;
 
     if (isInterest) {
-      // 🔥 고정 5슬롯 + 기타 3슬롯 = 총 8개
+      // 🔥 고정 5슬롯 + 기타 3슬롯 = 총 8개 (코드블록 정렬)
       const fixedTabs = INTEREST_TAB_OPTIONS.filter(o => o.value !== "etc");
-      lines = fixedTabs.map((tab) => {
+      const allLines = [];
+      fixedTabs.forEach((tab) => {
         const found = dayItems.find(item => item.desiredTab === tab.value);
-        return `${tab.label}  ${found ? "등록됨" : "—"}`;
+        allLines.push({ label: tab.label, value: found ? "등록됨" : "—" });
       });
-      // 기타 슬롯 3개
       const etcItems = dayItems
         .filter(item => item.desiredTab === "etc")
         .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
       for (let i = 0; i < 3; i++) {
         const found = etcItems[i];
-        const customName = found?.desiredTabCustom || "";
-        lines.push(`기타 ${i + 1} (그 외 빈 구좌)  ${customName || "—"}`);
+        const customName = found?.desiredTabCustom || "—";
+        allLines.push({ label: `기타${i + 1}(그 외 빈 구좌)`, value: customName });
       }
+      const maxLen = Math.max(...allLines.map(l => getDisplayWidth(l.label)));
+      const formatted = allLines.map(l => {
+        const pad = " ".repeat(maxLen - getDisplayWidth(l.label) + 2);
+        return `${l.label}${pad}${l.value}`;
+      });
+      lines = [`\`\`\`\n${formatted.join("\n")}\n\`\`\``];
     } else {
       const sorted = [...dayItems].sort(
         (a, b) => (a.priority || 0) - (b.priority || 0)
