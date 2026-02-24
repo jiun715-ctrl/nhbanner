@@ -129,7 +129,13 @@ export default function BannerPage() {
 
   function getColorKey(item) {
     if (item.banner) return item.banner;
-    if (type === "interest" && item.desiredTab) return item.desiredTab;
+    if (type === "interest" && item.desiredTab) {
+      // 기타는 각각 다른 색상 키 부여
+      if (item.desiredTab === "etc") {
+        return `etc_${item.desiredTabCustom || item.id || item.priority}`;
+      }
+      return item.desiredTab;
+    }
     return `slot_${item.priority || 0}`;
   }
 

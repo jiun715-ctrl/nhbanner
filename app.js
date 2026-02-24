@@ -506,7 +506,7 @@ async function publishHome(userId) {
       blocks: [
         {
           type: "header",
-          text: { type: "plain_text", text: "📢 배너 스케줄 등록하기" },
+          text: { type: "plain_text", text: "📢 배너 노출 희망 일정 신청" },
         },
         { type: "divider" },
         {
@@ -531,7 +531,7 @@ async function publishHome(userId) {
           elements: [
             {
               type: "button",
-              text: { type: "plain_text", text: "🔐 관리자전용" },
+              text: { type: "plain_text", text: "🔐 관리자전용페이지" },
               action_id: "open_admin_password",
               style: "danger",
             },
@@ -578,7 +578,7 @@ async function publishHome(userId) {
               "  • *[플로팅 배너]* 최대 3일\n" +
               "  • *[관심종목탭]* 최대 7일\n" +
               "      ⚠️ (공통) 같은 월 2회 이상 유사배너 노출 시, 3번째부터 후순위 변경 가능\n" +
-              "                  (2순위 신청자가 있을 경우에 한함, 유사 여부는 관리자 판단)",
+              "                      (2순위 신청자가 있을 경우에 한함, 유사 여부는 관리자 판단)",
           },
         },
         { type: "divider" },
@@ -589,7 +589,7 @@ async function publishHome(userId) {
             text:
               "*4. 우선순위 제도*\n" +
               "  • 배너 등록 신청 시각에 따라 1순위~5순위 및 대기번호 실시간 배정\n" +
-              "  • 기 등록 후 날짜 수정 시, 변경일에 신청자가 이미 있는 경우 후순위로 자동 배정",
+              "  • ⚠️(주의) 기 등록 후 날짜 수정 시, 변경일에 신청자가 이미 있는 경우 후순위로 자동 배정",
           },
         },
         { type: "divider" },
@@ -599,10 +599,11 @@ async function publishHome(userId) {
             type: "mrkdwn",
             text:
               "*5. 등록 시 주의사항*\n" +
-              "  • 모든 신청건이 확정되는 것은 아님. 본신청 마감(마지막 목요일) 이후 익월 캘린더에 1차 확정본만 남게 됨\n" +
+              "  • 모든 신청건이 확정되는 것은 아님.\n" +
+              "      본신청 마감(마지막 목요일) 이후 익월 캘린더에 1차 확정본만 남게 됨\n" +
               "      추가신청 마감(익월 두 번째 목요일) 이후에는 해당월 최종 확정본만 남게 됨.\n" +
               "  • 추후 상품종류(국내/해외주식 등), 목적(세일즈, 제도개선 안내 등), 전환율 등 운영상황에 따라\n" +
-              "      관리자/사용자 간 논의 하에 우선순위 기준이 변경될 수 있습니다.",
+              "      관리자/사용자 간 논의 하에 우선순위 기준이 변경될 수 있음.",
           },
         },
       ],
