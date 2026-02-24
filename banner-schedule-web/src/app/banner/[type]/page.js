@@ -179,7 +179,7 @@ export default function BannerPage() {
         <div className="mb-6 flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100">
             📆 월간 배너일정({
-              { home: "홈", floating: "플로팅", interest: "관심종목탭" }[type] || type
+              { home: "홈상단배너", floating: "플로팅배너", interest: "관심종목탭 배너" }[type] || type
             })
             <span className="ml-3 text-sm font-normal text-zinc-400">
               ※ 날짜를 클릭하시면 해당 정보가 하단에 노출됩니다
