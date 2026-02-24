@@ -907,6 +907,7 @@ function buildModalBlocks(type, item) {
         placeholder: { type: "plain_text", text: "배너내용을 입력하세요" },
       },
     });
+  }
 
   // 상품구분
   const ptElement = {
