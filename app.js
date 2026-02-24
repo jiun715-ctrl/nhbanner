@@ -882,12 +882,13 @@ function buildModalBlocks(type, item) {
       type: "input",
       block_id: "banner_block",
       label: { type: "plain_text", text: "배너명" },
+      hint: { type: "plain_text", text: "플로팅 배너인 경우 반드시 줄바꿈 심볼을 넣어주세요.\nex) 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
       element: {
         type: "plain_text_input",
         action_id: "banner",
         multiline: true,
         ...(isEdit ? { initial_value: item.banner || "" } : {}),
-        placeholder: { type: "plain_text", text: "플로팅 배너인 경우 반드시 줄바꿈 심볼을 넣어주세요. ex. 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
+        placeholder: { type: "plain_text", text: "배너명을 입력하세요" },
       },
     });
   }
@@ -898,14 +899,14 @@ function buildModalBlocks(type, item) {
       type: "input",
       block_id: "banner_desc_block",
       label: { type: "plain_text", text: "배너내용" },
+      hint: { type: "plain_text", text: "ex) 이제 환전 걱정할 필요 없어요" },
       element: {
         type: "plain_text_input",
         action_id: "banner_desc",
         ...(isEdit ? { initial_value: item.bannerDesc || "" } : {}),
-        placeholder: { type: "plain_text", text: "이제 환전 걱정할 필요 없어요" },
+        placeholder: { type: "plain_text", text: "배너내용을 입력하세요" },
       },
     });
-  }
 
   // 상품구분
   const ptElement = {
@@ -1080,12 +1081,13 @@ function buildModalBlocks(type, item) {
     block_id: "link_url_block",
     optional: true,
     label: { type: "plain_text", text: "이벤트이미지url" },
+    hint: { type: "plain_text", text: "노출 4일 전 알림이 갈 예정입니다.\n알림을 받으실 경우 실제 링크를 입력해주세요." },
     element: {
       type: "plain_text_input",
       action_id: "link_url",
       multiline: true,
       ...(isEdit ? { initial_value: item.linkUrl || "" } : {}),
-      placeholder: { type: "plain_text", text: "노출 4일 전 알림이 갈 예정입니다. 알림을 받으실 경우 실제 링크를 입력해주세요." },
+      placeholder: { type: "plain_text", text: "URL을 입력하세요" },
     },
   });
 
