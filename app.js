@@ -1293,7 +1293,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     await addBannerItem(type, newItem);
 
     // 🔥 관리자에게 등록 알림 DM
-    if (ADMIN_USER_ID && ADMIN_USER_ID !== body.user.id) {
+    if (ADMIN_USER_ID) {
       try {
         const displayName = isInterest
           ? getDesiredTabLabel(newItem.desiredTab) + (newItem.desiredTabCustom ? ` (${newItem.desiredTabCustom})` : "")
