@@ -547,7 +547,7 @@ async function publishHome(userId) {
         { type: "divider" },
         {
           type: "header",
-          text: { type: "plain_text", text: "📌 배너 운영 그라운드 룰" },
+          text: { type: "plain_text", text: "📌 배너 운영 그라운드 룰 (필독사항)" },
         },
         {
           type: "section",
@@ -873,7 +873,7 @@ function buildModalBlocks(type, item) {
     type: "input",
     block_id: "media_type_block",
     label: { type: "plain_text", text: "매체유형" },
-    hint: { type: "plain_text", text: "주간스케줄&월간캘린더는 [공통, 나무]로 선택한 항목만 보여집니다.\n[공통, N2]로 선택 시 해당 내용은 관리자페이지를 통해 N2 담당자(現 방영권 부장님)께 전달됩니다.\nN2 최종 등록 여부는 매체사정에 따라 변동될 수 있으므로 개별 확인 부탁드립니다." },
+    hint: { type: "plain_text", text: "주간스케줄&월간캘린더는 [공통, 나무]로 선택한 항목만 보여집니다.\n[공통, N2]로 선택 시 해당 내용은 관리자페이지를 통해\nN2 담당자(現 방영권 부장님)께 전달됩니다.\nN2 최종 등록 여부는 매체사정에 따라 변동될 수 있으므로 개별 확인 부탁드립니다." },
     element: mediaTypeElement,
   });
 
@@ -1032,7 +1032,7 @@ function buildModalBlocks(type, item) {
     type: "input",
     block_id: "end_date_block",
     label: { type: "plain_text", text: "노출종료 희망일자" },
-    hint: { type: "plain_text", text: "고객피로도 조절 차원에서 노출 기간이 제한됩니다.(홈상단/관심그룹탭 7일, 플로팅 3일)\n그 이상을 원하실 경우 추가로 배너를 등록해주세요"},
+    hint: { type: "plain_text", text: "고객피로도 조절 차원에서 노출 기간이 제한됩니다.\n(홈상단/관심그룹탭 7일, 플로팅 3일)\n그 이상을 원하실 경우 추가로 배너를 등록해주세요"},
     element: {
       type: "datepicker",
       action_id: "end_date",
