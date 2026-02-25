@@ -7,6 +7,7 @@ require("dotenv").config();
 const { App, ExpressReceiver } = require("@slack/bolt");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const nodemailer = require("nodemailer");
 
 /* ======================================================
  * MongoDB 연결
@@ -234,6 +235,47 @@ receiver.router.post("/slack/events", (req, res) => {
     return res.json({ challenge: req.body.challenge });
   }
   res.sendStatus(200);
+});
+/* ======================================================
+ * 엑셀 메일 전송 API
+ * ====================================================== */
+receiver.router.post("/api/admin/send-email", async (req, res) => {
+  const { to, subject, filename, data } = req.body;
+
+  if (!to || !data) {
+    return res.status(400).json({ error: "이메일 주소와 데이터가 필요합니다." });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,
+      },
+    });
+
+    const buffer = Buffer.from(data, "base64");
+
+    await transporter.sendMail({
+      from: `배너스케줄 관리 <${process.env.GMAIL_USER}>`,
+      to,
+      subject: subject || "배너 스케줄 엑셀",
+      text: "배너 스케줄 엑셀 파일이 첨부되어 있습니다.",
+      attachments: [
+        {
+          filename: filename || "banner_schedule.xlsx",
+          content: buffer,
+          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
+      ],
+    });
+
+    res.json({ success: true });
+  } catch (e) {
+    console.log("❌ 메일 전송 실패:", e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 receiver.router.get("/api/banner/:type", async (req, res) => {

@@ -82,7 +82,9 @@ export default function AdminPage() {
   const [editingItem, setEditingItem] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [saving, setSaving] = useState(false);
-
+  const [emailModal, setEmailModal] = useState(false);
+  const [emailTo, setEmailTo] = useState("");
+  const [sending, setSending] = useState(false);
   const isInterest = activeType === "interest";
 
   async function loadAllData() {
@@ -224,6 +226,63 @@ export default function AdminPage() {
     XLSX.writeFile(wb, `banner_admin_${activeType}_${month}.xlsx`);
   }
 
+  function buildExcelBase64() {
+    const wb = XLSX.utils.book_new();
+    const rows = filtered.map((item) => {
+      const row = {
+        No: item.no,
+        우선순위: item.priority ?? "—",
+        담당자: item.createdByName || "—",
+        배너구분: getLabel(BANNER_TYPE_OPTIONS, item.bannerType),
+        매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
+        배너명: item.banner,
+        배너내용: item.bannerDesc,
+        상품구분: getLabel(PRODUCT_TYPE_OPTIONS, item.productType),
+        목적: getLabel(PURPOSE_OPTIONS, item.purpose),
+      };
+      if (isInterest) {
+        row["희망 탭"] = getLabel(DESIRED_TAB_OPTIONS, item.desiredTab);
+        row["기타 희망 탭"] = item.desiredTabCustom || "";
+      }
+      row["노출시작"] = item.startDate;
+      row["노출종료"] = item.endDate;
+      row["바로가기속성"] = getLabel(LINK_TYPE_OPTIONS, item.linkType);
+      row["이벤트이미지url"] = item.linkUrl;
+      return row;
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, BANNER_TYPES[activeType]);
+    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
+    return wbout;
+  }
+
+  async function sendEmail() {
+    if (!emailTo) { alert("이메일 주소를 입력해주세요."); return; }
+    setSending(true);
+    try {
+      const base64 = buildExcelBase64();
+      const res = await fetch(`${API_BASE}/api/admin/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: emailTo,
+          subject: `[배너스케줄] ${BANNER_TYPES[activeType]} ${month}`,
+          filename: `banner_admin_${activeType}_${month}.xlsx`,
+          data: base64,
+        }),
+      });
+      if (!res.ok) throw new Error("전송 실패");
+      alert("✅ 메일이 전송되었습니다.");
+      setEmailModal(false);
+      setEmailTo("");
+    } catch (e) {
+      console.error(e);
+      alert("❌ 메일 전송 중 오류가 발생했습니다.");
+    } finally {
+      setSending(false);
+    }
+  }
+  
   return (
     <div style={{ minHeight: "100vh", background: "#f1f3f6", fontFamily: "'Segoe UI', 'Noto Sans KR', sans-serif" }}>
       {/* ── 상단 헤더 ── */}
@@ -275,6 +334,10 @@ export default function AdminPage() {
               padding: "7px 14px", background: "#16a34a", color: "#fff", border: "none",
               borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600,
             }}>⬇ 엑셀</button>
+            <button onClick={() => setEmailModal(true)} style={{
+              padding: "7px 14px", background: "#2563eb", color: "#fff", border: "none",
+              borderRadius: 6, cursor: "pointer", fontSize: 12, fontWeight: 600,
+            }}>📧 메일전송</button>
             <span style={{
               fontSize: 12, color: "#888", background: "#f4f4f5", padding: "5px 12px", borderRadius: 20, fontWeight: 600,
             }}>{filtered.length}건</span>
@@ -371,6 +434,64 @@ export default function AdminPage() {
           </div>
         </div>
       </main>
+
+{/* ── 메일 전송 모달 ── */}
+      {emailModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+          background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center",
+          zIndex: 1000,
+        }} onClick={(e) => { if (e.target === e.currentTarget) setEmailModal(false); }}>
+          <div style={{
+            background: "#fff", borderRadius: 14, width: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
+          }}>
+            <div style={{
+              background: "linear-gradient(135deg, #1e40af, #2563eb)",
+              padding: "18px 24px", borderRadius: "14px 14px 0 0",
+              color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center",
+            }}>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>📧 엑셀 메일 전송</h3>
+              <button onClick={() => setEmailModal(false)} style={{
+                background: "rgba(255,255,255,0.15)", border: "none", color: "#fff",
+                width: 30, height: 30, borderRadius: 6, cursor: "pointer", fontSize: 15,
+              }}>✕</button>
+            </div>
+            <div style={{ padding: "24px" }}>
+              <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 6px" }}>
+                {BANNER_TYPES[activeType]} · {month} 엑셀을 전송합니다.
+              </p>
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 5, marginTop: 16 }}>
+                받는 사람 이메일
+              </label>
+              <input
+                type="email"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                placeholder="ex) jiunlee@nhsec.com"
+                style={{
+                  width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
+                  borderRadius: 6, fontSize: 14, outline: "none", fontFamily: "inherit",
+                }}
+              />
+            </div>
+            <div style={{
+              padding: "14px 24px 20px", display: "flex", gap: 8, justifyContent: "flex-end",
+              borderTop: "1px solid #f1f5f9",
+            }}>
+              <button onClick={() => setEmailModal(false)} style={{
+                padding: "9px 20px", background: "#f4f4f5", color: "#555", border: "none",
+                borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 500,
+              }}>취소</button>
+              <button onClick={sendEmail} disabled={sending} style={{
+                padding: "9px 24px",
+                background: sending ? "#94a3b8" : "#2563eb",
+                color: "#fff", border: "none", borderRadius: 6,
+                cursor: sending ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
+              }}>{sending ? "전송중..." : "전송"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── 수정 모달 ── */}
       {editingItem && editForm && (
