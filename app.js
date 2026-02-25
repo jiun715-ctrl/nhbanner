@@ -760,6 +760,15 @@ async function publishMyReservations(userId, type) {
         },
       ],
     },
+    {
+      type: "actions",
+      elements: [
+        { type: "button", text: { type: "plain_text", text: "📋 전체" }, action_id: "filter_my_all", style: !type ? "primary" : undefined },
+        { type: "button", text: { type: "plain_text", text: "🏠 홈상단" }, action_id: "filter_my_home", style: type === "home" ? "primary" : undefined },
+        { type: "button", text: { type: "plain_text", text: "📌 플로팅" }, action_id: "filter_my_floating", style: type === "floating" ? "primary" : undefined },
+        { type: "button", text: { type: "plain_text", text: "⭐ 관심그룹" }, action_id: "filter_my_interest", style: type === "interest" ? "primary" : undefined },
+      ],
+    },
     { type: "divider" },
   ];
 
@@ -839,6 +848,26 @@ app.action("my_reservations", async ({ ack, body }) => {
 app.action("my_reservations_all", async ({ ack, body }) => {
   await ack();
   publishMyReservations(body.user.id, null).catch(e => console.log("publishMyReservations 실패:", e.message));
+});
+
+app.action("filter_my_all", async ({ ack, body }) => {
+  await ack();
+  publishMyReservations(body.user.id, null).catch(e => console.log("filter_my_all 실패:", e.message));
+});
+
+app.action("filter_my_home", async ({ ack, body }) => {
+  await ack();
+  publishMyReservations(body.user.id, "home").catch(e => console.log("filter_my_home 실패:", e.message));
+});
+
+app.action("filter_my_floating", async ({ ack, body }) => {
+  await ack();
+  publishMyReservations(body.user.id, "floating").catch(e => console.log("filter_my_floating 실패:", e.message));
+});
+
+app.action("filter_my_interest", async ({ ack, body }) => {
+  await ack();
+  publishMyReservations(body.user.id, "interest").catch(e => console.log("filter_my_interest 실패:", e.message));
 });
 
 /* ======================================================
