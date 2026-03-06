@@ -246,40 +246,42 @@ receiver.router.post("/api/admin/send-email", async (req, res) => {
   }
 
   try {
-    const response = await fetch("https://api.resend.com/emails", {
+    const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+        "Authorization": `Bearer ${process.env.SENDGRID_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "배너스케줄 <onboarding@resend.dev>",
-        to: [to],
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: process.env.SENDGRID_FROM_EMAIL, name: "배너스케줄 관리" },
         subject: subject || "배너 스케줄 엑셀",
-        text: "배너 스케줄 엑셀 파일이 첨부되어 있습니다.",
+        content: [{ type: "text/plain", value: "배너 스케줄 엑셀 파일이 첨부되어 있습니다." }],
         attachments: [
           {
-            filename: filename || "banner_schedule.xlsx",
             content: data,
+            filename: filename || "banner_schedule.xlsx",
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            disposition: "attachment",
           },
         ],
       }),
     });
 
-    const result = await response.json();
-
     if (!response.ok) {
-      console.log("❌ Resend 응답:", JSON.stringify(result));
-      return res.status(500).json({ error: result.message || "전송 실패" });
+      const errText = await response.text();
+      console.log("❌ SendGrid 응답:", errText);
+      return res.status(500).json({ error: "메일 전송 실패" });
     }
 
-    console.log("✅ 메일 전송 성공:", result.id);
+    console.log("✅ 메일 전송 성공");
     res.json({ success: true });
   } catch (e) {
     console.log("❌ 메일 전송 실패:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
+
 
 /* ======================================================
  * 관리자 수정 API
