@@ -7,7 +7,8 @@ require("dotenv").config();
 const { App, ExpressReceiver } = require("@slack/bolt");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /* ======================================================
  * MongoDB 연결
@@ -247,18 +248,10 @@ receiver.router.post("/api/admin/send-email", async (req, res) => {
   }
 
   try {
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASSWORD,
-      },
-    });
-
     const buffer = Buffer.from(data, "base64");
 
-    await transporter.sendMail({
-      from: `배너스케줄 관리 <${process.env.GMAIL_USER}>`,
+    await resend.emails.send({
+      from: "배너스케줄 <onboarding@resend.dev>",
       to,
       subject: subject || "배너 스케줄 엑셀",
       text: "배너 스케줄 엑셀 파일이 첨부되어 있습니다.",
@@ -266,7 +259,6 @@ receiver.router.post("/api/admin/send-email", async (req, res) => {
         {
           filename: filename || "banner_schedule.xlsx",
           content: buffer,
-          contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         },
       ],
     });
