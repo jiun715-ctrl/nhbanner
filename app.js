@@ -7,8 +7,6 @@ require("dotenv").config();
 const { App, ExpressReceiver } = require("@slack/bolt");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const { Resend } = require("resend");
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 /* ======================================================
  * MongoDB 연결
@@ -248,42 +246,39 @@ receiver.router.post("/api/admin/send-email", async (req, res) => {
   }
 
   try {
-    const buffer = Buffer.from(data, "base64");
-
-    await resend.emails.send({
-      from: "배너스케줄 <onboarding@resend.dev>",
-      to,
-      subject: subject || "배너 스케줄 엑셀",
-      text: "배너 스케줄 엑셀 파일이 첨부되어 있습니다.",
-      attachments: [
-        {
-          filename: filename || "banner_schedule.xlsx",
-          content: buffer,
-        },
-      ],
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: "배너스케줄 <onboarding@resend.dev>",
+        to: [to],
+        subject: subject || "배너 스케줄 엑셀",
+        text: "배너 스케줄 엑셀 파일이 첨부되어 있습니다.",
+        attachments: [
+          {
+            filename: filename || "banner_schedule.xlsx",
+            content: data,
+          },
+        ],
+      }),
     });
 
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.log("❌ Resend 응답:", JSON.stringify(result));
+      return res.status(500).json({ error: result.message || "전송 실패" });
+    }
+
+    console.log("✅ 메일 전송 성공:", result.id);
     res.json({ success: true });
   } catch (e) {
     console.log("❌ 메일 전송 실패:", e.message);
     res.status(500).json({ error: e.message });
   }
-});
-
-receiver.router.get("/api/banner/:type", async (req, res) => {
-  const data = await loadBannerData(req.params.type);
-
-  if (req.query.withUserName === "true") {
-    const enriched = await Promise.all(
-      data.map(async (item) => ({
-        ...item,
-        createdByName: await getSlackUserName(item.createdBy),
-      }))
-    );
-    return res.json(enriched);
-  }
-
-  res.json(data);
 });
 
 /* ======================================================
