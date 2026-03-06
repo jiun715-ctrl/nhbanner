@@ -235,6 +235,8 @@ receiver.router.post("/slack/events", (req, res) => {
   }
   res.sendStatus(200);
 });
+
+
 /* ======================================================
  * 엑셀 메일 전송 API
  * ====================================================== */
@@ -282,6 +284,21 @@ receiver.router.post("/api/admin/send-email", async (req, res) => {
   }
 });
 
+receiver.router.get("/api/banner/:type", async (req, res) => {
+  const data = await loadBannerData(req.params.type);
+
+  if (req.query.withUserName === "true") {
+    const enriched = await Promise.all(
+      data.map(async (item) => ({
+        ...item,
+        createdByName: await getSlackUserName(item.createdBy),
+      }))
+    );
+    return res.json(enriched);
+  }
+
+  res.json(data);
+});
 
 /* ======================================================
  * 관리자 수정 API
