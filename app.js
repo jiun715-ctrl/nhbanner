@@ -85,7 +85,9 @@ const INTEREST_TAB_OPTIONS = [
   { value: "domestic_rank", label: "국내종목순위" },
   { value: "foreign_rank", label: "해외종목순위" },
   { value: "etf_rank", label: "ETF순위" },
-  { value: "etc", label: "기타(그 외 빈 구좌)" },
+  { value: "vi_stock", label: "VI발동종목" },
+  { value: "sector_stock", label: "섹터 종목" },
+  { value: "coin_price", label: "코인시세" },
 ];
 
 const INTEREST_RANK_LABELS = INTEREST_TAB_OPTIONS.map(o => o.label);
@@ -724,22 +726,12 @@ async function publishBannerMain(userId, type) {
 
     let lines;
 
-    if (isInterest) {
-      // 🔥 고정 5슬롯 + 기타 3슬롯 = 총 8개 (코드블록 정렬)
-      const fixedTabs = INTEREST_TAB_OPTIONS.filter(o => o.value !== "etc");
-      const allLines = [];
-      fixedTabs.forEach((tab) => {
+if (isInterest) {
+      // 🔥 8슬롯 전부 고정 (코드블록 정렬)
+      const allLines = INTEREST_TAB_OPTIONS.map((tab) => {
         const found = dayItems.find(item => item.desiredTab === tab.value);
-        allLines.push({ label: tab.label, value: found ? "등록됨" : "—" });
+        return { label: tab.label, value: found ? "등록됨" : "—" };
       });
-      const etcItems = dayItems
-        .filter(item => item.desiredTab === "etc")
-        .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""));
-      for (let i = 0; i < 3; i++) {
-        const found = etcItems[i];
-        const customName = found?.desiredTabCustom || "—";
-        allLines.push({ label: `기타${i + 1}(그 외 빈 구좌)`, value: customName });
-      }
       const maxLen = Math.max(...allLines.map(l => getDisplayWidth(l.label)));
       const formatted = allLines.map(l => {
         const pad = " ".repeat(maxLen - getDisplayWidth(l.label) + 2);
@@ -831,11 +823,7 @@ async function publishMyReservations(userId, type) {
       // 🔥 interest: 희망 탭 라벨 표시
       let displayName = item.banner;
       if (item._type === "interest") {
-        const tabLabel = getDesiredTabLabel(item.desiredTab);
-        const customSuffix = item.desiredTab === "etc" && item.desiredTabCustom
-          ? ` (${item.desiredTabCustom})`
-          : "";
-        displayName = `${tabLabel}${customSuffix}`;
+        displayName = getDesiredTabLabel(item.desiredTab);
       }
       displayName = displayName || "—";
 
@@ -1073,19 +1061,6 @@ function buildModalBlocks(type, item) {
       element: dtElement,
     });
 
-    // 기타 선택 시 희망 탭 입력
-    blocks.push({
-      type: "input",
-      block_id: "desired_tab_custom_block",
-      optional: true,
-      label: { type: "plain_text", text: "기타 선택 시 희망 탭 입력" },
-      element: {
-        type: "plain_text_input",
-        action_id: "desired_tab_custom",
-        ...(isEdit ? { initial_value: item.desiredTabCustom || "" } : {}),
-        placeholder: { type: "plain_text", text: "기타 선택 시 희망 탭 이름을 입력하세요" },
-      },
-    });
   }
 
   // 노출시작 희망일자
@@ -1367,7 +1342,7 @@ Object.keys(BANNER_TYPES).forEach((type) => {
       productType: v.product_type_block.product_type.selected_option?.value || "",
       purpose: v.purpose_block.purpose.selected_option?.value || "",
       desiredTab: isInterest ? (v.desired_tab_block?.desired_tab?.selected_option?.value || "") : "",
-      desiredTabCustom: isInterest ? (v.desired_tab_custom_block?.desired_tab_custom?.value || "") : "",
+      desiredTabCustom: "",
       startDate: v.start_date_block.start_date.selected_date,
       endDate: v.end_date_block.end_date.selected_date,
       linkType: v.link_type_block.link_type.selected_option?.value || "",
@@ -1462,7 +1437,7 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
 
   if (isInterest) {
     updates.desiredTab = v.desired_tab_block?.desired_tab?.selected_option?.value || "";
-    updates.desiredTabCustom = v.desired_tab_custom_block?.desired_tab_custom?.value || "";
+    updates.desiredTabCustom = "";
   } else {
     updates.banner = v.banner_block?.banner?.value || "";
     updates.bannerDesc = v.banner_desc_block?.banner_desc?.value || "";

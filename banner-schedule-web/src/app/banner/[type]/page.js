@@ -57,7 +57,9 @@ const INTEREST_TAB_OPTIONS = [
   { value: "domestic_rank", label: "국내종목순위" },
   { value: "foreign_rank", label: "해외종목순위" },
   { value: "etf_rank", label: "ETF순위" },
-  { value: "etc", label: "기타(그 외 빈 구좌)" },
+  { value: "vi_stock", label: "VI발동종목" },
+  { value: "sector_stock", label: "섹터 종목" },
+  { value: "coin_price", label: "코인시세" },
 ];
 
 const INTEREST_RANK_LABELS = INTEREST_TAB_OPTIONS.map(o => o.label);
@@ -155,15 +157,9 @@ export default function BannerPage() {
       .filter(b => b.startDate <= selectedDate && b.endDate >= selectedDate);
 
     if (isInterest) {
-      // 고정 5슬롯 (etc 제외) desiredTab 순서대로
-      const fixedValues = INTEREST_SLOT_VALUES.filter(v => v !== "etc");
-      const fixed = fixedValues.map(v => items.find(i => i.desiredTab === v)).filter(Boolean);
-      // 기타 3개 (등록순)
-      const etcItems = items
-        .filter(i => i.desiredTab === "etc")
-        .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))
-        .slice(0, 3);
-      return [...fixed, ...etcItems];
+      return INTEREST_SLOT_VALUES
+        .map(v => items.find(i => i.desiredTab === v))
+        .filter(Boolean);
     }
 
     return items
@@ -228,13 +224,9 @@ export default function BannerPage() {
               const raw = calendarBanners
                 .filter(b => b.startDate <= dateStr && b.endDate >= dateStr);
               if (isInterest) {
-                const fixedValues = INTEREST_SLOT_VALUES.filter(v => v !== "etc");
-                const fixed = fixedValues.map(v => raw.find(i => i.desiredTab === v)).filter(Boolean);
-                const etcItems = raw
-                  .filter(i => i.desiredTab === "etc")
-                  .sort((a, b) => (a.createdAt || "").localeCompare(b.createdAt || ""))
-                  .slice(0, 3);
-                return [...fixed, ...etcItems];
+                return INTEREST_SLOT_VALUES
+                  .map(v => raw.find(i => i.desiredTab === v))
+                  .filter(Boolean);
               }
               return raw.sort((a, b) => (a.priority || 99) - (b.priority || 99));
             })();
@@ -295,13 +287,8 @@ export default function BannerPage() {
                   const isWaiting = isInterest ? false : index >= 5;
                   let rankLabel;
                   if (isInterest) {
-                    if (index < 5) {
-                      const fixedValues = INTEREST_SLOT_VALUES.filter(v => v !== "etc");
-                      const tabOpt = INTEREST_TAB_OPTIONS.find(o => o.value === (item.desiredTab || fixedValues[index]));
-                      rankLabel = tabOpt ? tabOpt.label : `슬롯${index + 1}`;
-                    } else {
-                      rankLabel = `기타 ${index - 4} (그 외 빈 구좌)`;
-                    }
+                    const tabOpt = INTEREST_TAB_OPTIONS.find(o => o.value === item.desiredTab);
+                    rankLabel = tabOpt ? tabOpt.label : `슬롯${index + 1}`;
                   } else {
                     rankLabel = isWaiting
                       ? `대기 ${index - 4}`

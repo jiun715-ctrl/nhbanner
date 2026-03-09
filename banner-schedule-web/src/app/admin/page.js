@@ -56,7 +56,9 @@ const DESIRED_TAB_OPTIONS = [
   { value: "domestic_rank", label: "국내종목순위" },
   { value: "foreign_rank", label: "해외종목순위" },
   { value: "etf_rank", label: "ETF순위" },
-  { value: "etc", label: "기타(그 외 빈 구좌)" },
+  { value: "vi_stock", label: "VI발동종목" },
+  { value: "sector_stock", label: "섹터 종목" },
+  { value: "coin_price", label: "코인시세" },
 ];
 
 function getCurrentMonthYYYYMM() {
