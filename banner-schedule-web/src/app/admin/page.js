@@ -28,10 +28,16 @@ const MEDIA_TYPE_OPTIONS = [
 ];
 
 const LINK_TYPE_OPTIONS = [
+  { value: "screen_mts", label: "화면오픈(MTS화면)" },
+  { value: "popup_event", label: "팝업오픈(이벤트)" },
+  { value: "popup_notice", label: "팝업오픈(공지사항)" },
+  { value: "popup_content", label: "팝업오픈(콘텐츠)" },
+  { value: "url_external", label: "URL(외부페이지)" },
+  // interest용 & 구버전 호환
+  { value: "url", label: "URL" },
   { value: "screen", label: "화면오픈" },
   { value: "popup", label: "팝업오픈" },
   { value: "frame_popup", label: "프레임팝업" },
-  { value: "url", label: "URL" },
 ];
 
 const PRODUCT_TYPE_OPTIONS = [
@@ -87,6 +93,7 @@ export default function AdminPage() {
   const [emailModal, setEmailModal] = useState(false);
   const [emailTo, setEmailTo] = useState("");
   const [sending, setSending] = useState(false);
+
   const isInterest = activeType === "interest";
 
   async function loadAllData() {
@@ -128,16 +135,15 @@ export default function AdminPage() {
       .map((item, idx) => ({ no: idx + 1, ...item }));
   }, [allData, activeType, month]);
 
-  /* 🔥 테이블 헤더 동적 생성 */
   const tableHeaders = useMemo(() => {
     const base = [
       "수정","우선순위","No","담당자","배너구분","매체유형","배너명","배너내용",
       "상품구분","목적",
     ];
     if (isInterest) {
-      base.push("희망 탭", "기타 희망 탭");
+      base.push("희망 탭");
     }
-    base.push("노출시작","노출종료","바로가기속성","이벤트이미지url","삭제");
+    base.push("노출시작","노출종료","바로가기속성","바로가기링크","랜딩페이지","삭제");
     return base;
   }, [isInterest]);
 
@@ -156,12 +162,11 @@ export default function AdminPage() {
       productType: item.productType || "",
       purpose: item.purpose || "",
       desiredTab: item.desiredTab || "",
-      desiredTabCustom: item.desiredTabCustom || "",
       startDate: item.startDate || "",
       endDate: item.endDate || "",
       linkType: item.linkType || "",
-      linkUrl: item.linkUrl || "",
       linkData: item.linkData || "",
+      landingPage: item.landingPage || "",
       priority: item.priority || 1,
     });
   }
@@ -199,35 +204,6 @@ export default function AdminPage() {
     }
   }
 
-  function downloadExcel() {
-    const wb = XLSX.utils.book_new();
-    const rows = filtered.map((item) => {
-      const row = {
-        No: item.no,
-        우선순위: item.priority ?? "—",
-        담당자: item.createdByName || "—",
-        배너구분: getLabel(BANNER_TYPE_OPTIONS, item.bannerType),
-        매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
-        배너명: item.banner,
-        배너내용: item.bannerDesc,
-        상품구분: getLabel(PRODUCT_TYPE_OPTIONS, item.productType),
-        목적: getLabel(PURPOSE_OPTIONS, item.purpose),
-      };
-      if (isInterest) {
-        row["희망 탭"] = getLabel(DESIRED_TAB_OPTIONS, item.desiredTab);
-        row["기타 희망 탭"] = item.desiredTabCustom || "";
-      }
-      row["노출시작"] = item.startDate;
-      row["노출종료"] = item.endDate;
-      row["바로가기속성"] = getLabel(LINK_TYPE_OPTIONS, item.linkType);
-      row["이벤트이미지url"] = item.linkUrl;
-      return row;
-    });
-    const ws = XLSX.utils.json_to_sheet(rows);
-    XLSX.utils.book_append_sheet(wb, ws, BANNER_TYPES[activeType]);
-    XLSX.writeFile(wb, `banner_admin_${activeType}_${month}.xlsx`);
-  }
-
   function buildExcelBase64() {
     const wb = XLSX.utils.book_new();
     const rows = filtered.map((item) => {
@@ -244,18 +220,46 @@ export default function AdminPage() {
       };
       if (isInterest) {
         row["희망 탭"] = getLabel(DESIRED_TAB_OPTIONS, item.desiredTab);
-        row["기타 희망 탭"] = item.desiredTabCustom || "";
       }
       row["노출시작"] = item.startDate;
       row["노출종료"] = item.endDate;
       row["바로가기속성"] = getLabel(LINK_TYPE_OPTIONS, item.linkType);
-      row["이벤트이미지url"] = item.linkUrl;
+      row["바로가기링크"] = item.linkData || "";
+      row["랜딩페이지"] = item.landingPage || "";
       return row;
     });
     const ws = XLSX.utils.json_to_sheet(rows);
     XLSX.utils.book_append_sheet(wb, ws, BANNER_TYPES[activeType]);
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "base64" });
-    return wbout;
+    return XLSX.write(wb, { bookType: "xlsx", type: "base64" });
+  }
+
+  function downloadExcel() {
+    const wb = XLSX.utils.book_new();
+    const rows = filtered.map((item) => {
+      const row = {
+        No: item.no,
+        우선순위: item.priority ?? "—",
+        담당자: item.createdByName || "—",
+        배너구분: getLabel(BANNER_TYPE_OPTIONS, item.bannerType),
+        매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
+        배너명: item.banner,
+        배너내용: item.bannerDesc,
+        상품구분: getLabel(PRODUCT_TYPE_OPTIONS, item.productType),
+        목적: getLabel(PURPOSE_OPTIONS, item.purpose),
+      };
+      if (isInterest) {
+        row["희망 탭"] = getLabel(DESIRED_TAB_OPTIONS, item.desiredTab);
+      }
+      row["노출시작"] = item.startDate;
+      row["노출종료"] = item.endDate;
+      row["바로가기속성"] = getLabel(LINK_TYPE_OPTIONS, item.linkType);
+      row["바로가기링크"] = item.linkData || "";
+      row["랜딩페이지"] = item.landingPage || "";
+      return row;
+    });
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, BANNER_TYPES[activeType]);
+    XLSX.writeFile(wb, `banner_admin_${activeType}_${month}.xlsx`);
   }
 
   async function sendEmail() {
@@ -284,10 +288,9 @@ export default function AdminPage() {
       setSending(false);
     }
   }
-  
+
   return (
     <div style={{ minHeight: "100vh", background: "#f1f3f6", fontFamily: "'Segoe UI', 'Noto Sans KR', sans-serif" }}>
-      {/* ── 상단 헤더 ── */}
       <header style={{
         background: "linear-gradient(135deg, #1e293b 0%, #334155 100%)",
         padding: "22px 32px",
@@ -297,9 +300,7 @@ export default function AdminPage() {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 26 }}>📋</span>
           <div>
-            <h1 style={{ color: "#fff", fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: "-0.3px" }}>
-              배너 스케줄 관리
-            </h1>
+            <h1 style={{ color: "#fff", fontSize: 20, fontWeight: 700, margin: 0 }}>배너 스케줄 관리</h1>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, margin: 0, marginTop: 2 }}>Admin Panel</p>
           </div>
         </div>
@@ -309,8 +310,7 @@ export default function AdminPage() {
         }}>🔄 새로고침</button>
       </header>
 
-      <main style={{ maxWidth: 1440, margin: "0 auto", padding: "24px 28px" }}>
-        {/* ── 탭 + 필터 ── */}
+      <main style={{ maxWidth: 1600, margin: "0 auto", padding: "24px 28px" }}>
         <div style={{
           background: "#fff", borderRadius: 10, padding: "16px 20px", marginBottom: 16,
           boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
@@ -352,10 +352,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── 테이블 ── */}
-        <div style={{
-          background: "#fff", borderRadius: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden",
-        }}>
+        <div style={{ background: "#fff", borderRadius: 10, boxShadow: "0 1px 4px rgba(0,0,0,0.06)", overflow: "hidden" }}>
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, whiteSpace: "nowrap" }}>
               <thead>
@@ -366,20 +363,15 @@ export default function AdminPage() {
                       textAlign: [0,1,2,deleteColIdx].includes(i) ? "center" : "left",
                       fontSize: 11, fontWeight: 700,
                       color: i === deleteColIdx ? "#dc2626" : "#64748b",
-                      letterSpacing: "0.3px",
                     }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan={totalCols} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
-                    ⏳ 데이터 로딩중...
-                  </td></tr>
+                  <tr><td colSpan={totalCols} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>⏳ 데이터 로딩중...</td></tr>
                 ) : filtered.length === 0 ? (
-                  <tr><td colSpan={totalCols} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>
-                    등록된 배너가 없습니다
-                  </td></tr>
+                  <tr><td colSpan={totalCols} style={{ textAlign: "center", padding: 48, color: "#a1a1aa" }}>등록된 배너가 없습니다</td></tr>
                 ) : filtered.map((item, idx) => (
                   <tr key={item.id || item._id} style={{
                     borderBottom: "1px solid #f1f5f9",
@@ -394,35 +386,23 @@ export default function AdminPage() {
                         padding: "5px 10px", cursor: "pointer", fontSize: 13,
                       }}>✏️</button>
                     </td>
-                    <td style={{ padding: "10px 12px", textAlign: "center" }}>
-                      <PriorityBadge value={item.priority} />
-                    </td>
+                    <td style={{ padding: "10px 12px", textAlign: "center" }}><PriorityBadge value={item.priority} /></td>
                     <td style={{ padding: "10px 12px", textAlign: "center", color: "#94a3b8", fontWeight: 600 }}>{item.no}</td>
                     <td style={{ ...tdS, fontWeight: 500, color: "#334155" }}>{item.createdByName || "—"}</td>
                     <td style={tdS}>{getLabel(BANNER_TYPE_OPTIONS, item.bannerType)}</td>
                     <td style={tdS}>{getLabel(MEDIA_TYPE_OPTIONS, item.mediaType)}</td>
                     <td style={{ ...tdS, fontWeight: 600, color: "#1e293b" }}>{item.banner || "—"}</td>
-                    <td style={{ ...tdS, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {item.bannerDesc || "—"}
-                    </td>
+                    <td style={{ ...tdS, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis" }}>{item.bannerDesc || "—"}</td>
                     <td style={tdS}>{getLabel(PRODUCT_TYPE_OPTIONS, item.productType)}</td>
                     <td style={tdS}>{getLabel(PURPOSE_OPTIONS, item.purpose)}</td>
                     {isInterest && (
-                      <>
-                        <td style={{ ...tdS, fontWeight: 500, color: "#7c3aed" }}>
-                          {getLabel(DESIRED_TAB_OPTIONS, item.desiredTab)}
-                        </td>
-                        <td style={{ ...tdS, maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {item.desiredTabCustom || "—"}
-                        </td>
-                      </>
+                      <td style={{ ...tdS, fontWeight: 500, color: "#7c3aed" }}>{getLabel(DESIRED_TAB_OPTIONS, item.desiredTab)}</td>
                     )}
                     <td style={{ ...tdS, textAlign: "center" }}>{item.startDate || "—"}</td>
                     <td style={{ ...tdS, textAlign: "center" }}>{item.endDate || "—"}</td>
                     <td style={tdS}>{getLabel(LINK_TYPE_OPTIONS, item.linkType)}</td>
-                    <td style={{ ...tdS, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {item.linkUrl || "—"}
-                    </td>
+                    <td style={{ ...tdS, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{item.linkData || "—"}</td>
+                    <td style={{ ...tdS, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis" }}>{item.landingPage || "—"}</td>
                     <td style={{ padding: "10px 12px", textAlign: "center" }}>
                       <button onClick={() => handleDelete(item)} style={{
                         background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 5,
@@ -437,16 +417,13 @@ export default function AdminPage() {
         </div>
       </main>
 
-{/* ── 메일 전송 모달 ── */}
+      {/* ── 메일 전송 모달 ── */}
       {emailModal && (
         <div style={{
           position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-          background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center",
-          zIndex: 1000,
+          background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000,
         }} onClick={(e) => { if (e.target === e.currentTarget) setEmailModal(false); }}>
-          <div style={{
-            background: "#fff", borderRadius: 14, width: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
-          }}>
+          <div style={{ background: "#fff", borderRadius: 14, width: 420, boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
             <div style={{
               background: "linear-gradient(135deg, #1e40af, #2563eb)",
               padding: "18px 24px", borderRadius: "14px 14px 0 0",
@@ -462,33 +439,18 @@ export default function AdminPage() {
               <p style={{ fontSize: 13, color: "#64748b", margin: "0 0 6px" }}>
                 {BANNER_TYPES[activeType]} · {month} 엑셀을 전송합니다.
               </p>
-              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 5, marginTop: 16 }}>
-                받는 사람 이메일
-              </label>
-              <input
-                type="email"
-                value={emailTo}
-                onChange={(e) => setEmailTo(e.target.value)}
-                placeholder="ex) jiunlee@nhsec.com"
-                style={{
-                  width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0",
-                  borderRadius: 6, fontSize: 14, outline: "none", fontFamily: "inherit",
-                }}
-              />
+              <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#64748b", marginBottom: 5, marginTop: 16 }}>받는 사람 이메일</label>
+              <input type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)}
+                placeholder="ex) jiunlee@nhqv.com"
+                style={{ width: "100%", padding: "10px 12px", border: "1px solid #e2e8f0", borderRadius: 6, fontSize: 14, outline: "none", fontFamily: "inherit" }} />
             </div>
-            <div style={{
-              padding: "14px 24px 20px", display: "flex", gap: 8, justifyContent: "flex-end",
-              borderTop: "1px solid #f1f5f9",
-            }}>
+            <div style={{ padding: "14px 24px 20px", display: "flex", gap: 8, justifyContent: "flex-end", borderTop: "1px solid #f1f5f9" }}>
               <button onClick={() => setEmailModal(false)} style={{
-                padding: "9px 20px", background: "#f4f4f5", color: "#555", border: "none",
-                borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 500,
+                padding: "9px 20px", background: "#f4f4f5", color: "#555", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 500,
               }}>취소</button>
               <button onClick={sendEmail} disabled={sending} style={{
-                padding: "9px 24px",
-                background: sending ? "#94a3b8" : "#2563eb",
-                color: "#fff", border: "none", borderRadius: 6,
-                cursor: sending ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
+                padding: "9px 24px", background: sending ? "#94a3b8" : "#2563eb",
+                color: "#fff", border: "none", borderRadius: 6, cursor: sending ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
               }}>{sending ? "전송중..." : "전송"}</button>
             </div>
           </div>
@@ -499,13 +461,9 @@ export default function AdminPage() {
       {editingItem && editForm && (
         <div style={{
           position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-          background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center",
-          zIndex: 1000,
+          background: "rgba(0,0,0,0.45)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 1000,
         }} onClick={(e) => { if (e.target === e.currentTarget) setEditingItem(null); }}>
-          <div style={{
-            background: "#fff", borderRadius: 14, width: 500, maxHeight: "90vh", overflow: "auto",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.25)",
-          }}>
+          <div style={{ background: "#fff", borderRadius: 14, width: 520, maxHeight: "90vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}>
             <div style={{
               background: "linear-gradient(135deg, #1e293b, #334155)",
               padding: "18px 24px", borderRadius: "14px 14px 0 0",
@@ -521,109 +479,87 @@ export default function AdminPage() {
             <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="배너구분">
-                  <select style={inp} value={editForm.bannerType}
-                    onChange={(e) => setEditForm({ ...editForm, bannerType: e.target.value })}>
-                    <option value="">선택하세요</option>
+                  <select style={inp} value={editForm.bannerType} onChange={(e) => setEditForm({ ...editForm, bannerType: e.target.value })}>
+                    <option value="">선택</option>
                     {BANNER_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </Field>
                 <Field label="매체유형">
-                  <select style={inp} value={editForm.mediaType}
-                    onChange={(e) => setEditForm({ ...editForm, mediaType: e.target.value })}>
-                    <option value="">선택하세요</option>
+                  <select style={inp} value={editForm.mediaType} onChange={(e) => setEditForm({ ...editForm, mediaType: e.target.value })}>
+                    <option value="">선택</option>
                     {MEDIA_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </Field>
               </div>
 
               <Field label="배너명">
-                <input style={inp} value={editForm.banner}
-                  onChange={(e) => setEditForm({ ...editForm, banner: e.target.value })} />
+                <input style={inp} value={editForm.banner} onChange={(e) => setEditForm({ ...editForm, banner: e.target.value })} />
               </Field>
 
               <Field label="배너내용">
-                <textarea style={{ ...inp, minHeight: 72, resize: "vertical" }} value={editForm.bannerDesc}
-                  onChange={(e) => setEditForm({ ...editForm, bannerDesc: e.target.value })} />
+                <textarea style={{ ...inp, minHeight: 72, resize: "vertical" }} value={editForm.bannerDesc} onChange={(e) => setEditForm({ ...editForm, bannerDesc: e.target.value })} />
               </Field>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <Field label="상품구분">
-                  <select style={inp} value={editForm.productType}
-                    onChange={(e) => setEditForm({ ...editForm, productType: e.target.value })}>
-                    <option value="">선택하세요</option>
+                  <select style={inp} value={editForm.productType} onChange={(e) => setEditForm({ ...editForm, productType: e.target.value })}>
+                    <option value="">선택</option>
                     {PRODUCT_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </Field>
                 <Field label="목적">
-                  <select style={inp} value={editForm.purpose}
-                    onChange={(e) => setEditForm({ ...editForm, purpose: e.target.value })}>
-                    <option value="">선택하세요</option>
+                  <select style={inp} value={editForm.purpose} onChange={(e) => setEditForm({ ...editForm, purpose: e.target.value })}>
+                    <option value="">선택</option>
                     {PURPOSE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </Field>
               </div>
 
-              {/* 🔥 interest: 희망 탭 + 기타 희망 탭 */}
               {isInterest && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <Field label="희망 탭">
-                    <select style={inp} value={editForm.desiredTab}
-                      onChange={(e) => setEditForm({ ...editForm, desiredTab: e.target.value })}>
-                      <option value="">선택하세요</option>
-                      {DESIRED_TAB_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                    </select>
-                  </Field>
-                  <Field label="기타 희망 탭">
-                    <input style={inp} value={editForm.desiredTabCustom}
-                      onChange={(e) => setEditForm({ ...editForm, desiredTabCustom: e.target.value })}
-                      placeholder="기타 선택 시 입력" />
-                  </Field>
-                </div>
+                <Field label="희망 탭">
+                  <select style={inp} value={editForm.desiredTab} onChange={(e) => setEditForm({ ...editForm, desiredTab: e.target.value })}>
+                    <option value="">선택</option>
+                    {DESIRED_TAB_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </Field>
               )}
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <Field label="노출시작 희망일자">
-                  <input type="date" style={inp} value={editForm.startDate}
-                    onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })} />
+                <Field label="노출시작">
+                  <input type="date" style={inp} value={editForm.startDate} onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })} />
                 </Field>
-                <Field label="노출종료 희망일자">
-                  <input type="date" style={inp} value={editForm.endDate}
-                    onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })} />
+                <Field label="노출종료">
+                  <input type="date" style={inp} value={editForm.endDate} onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })} />
                 </Field>
               </div>
 
               <Field label="바로가기속성">
-                <select style={inp} value={editForm.linkType}
-                  onChange={(e) => setEditForm({ ...editForm, linkType: e.target.value })}>
-                  <option value="">선택하세요</option>
+                <select style={inp} value={editForm.linkType} onChange={(e) => setEditForm({ ...editForm, linkType: e.target.value })}>
+                  <option value="">선택</option>
                   {LINK_TYPE_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               </Field>
 
-              <Field label="이벤트이미지url">
-                <input style={inp} value={editForm.linkUrl}
-                  onChange={(e) => setEditForm({ ...editForm, linkUrl: e.target.value })} />
+              <Field label="바로가기링크">
+                <input style={inp} value={editForm.linkData} onChange={(e) => setEditForm({ ...editForm, linkData: e.target.value })} />
+              </Field>
+
+              <Field label="랜딩페이지">
+                <input style={inp} value={editForm.landingPage} onChange={(e) => setEditForm({ ...editForm, landingPage: e.target.value })} />
               </Field>
 
               <Field label="우선순위">
-                <input type="number" min={1} style={{ ...inp, width: 100 }} value={editForm.priority}
-                  onChange={(e) => setEditForm({ ...editForm, priority: Number(e.target.value) })} />
+                <input type="number" min={1} style={{ ...inp, width: 100 }} value={editForm.priority} onChange={(e) => setEditForm({ ...editForm, priority: Number(e.target.value) })} />
               </Field>
             </div>
 
-            <div style={{
-              padding: "14px 24px 20px", display: "flex", gap: 8, justifyContent: "flex-end",
-              borderTop: "1px solid #f1f5f9",
-            }}>
+            <div style={{ padding: "14px 24px 20px", display: "flex", gap: 8, justifyContent: "flex-end", borderTop: "1px solid #f1f5f9" }}>
               <button onClick={() => setEditingItem(null)} style={{
-                padding: "9px 20px", background: "#f4f4f5", color: "#555", border: "none",
-                borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 500,
+                padding: "9px 20px", background: "#f4f4f5", color: "#555", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 500,
               }}>취소</button>
               <button onClick={handleUpdate} disabled={saving} style={{
-                padding: "9px 24px",
-                background: saving ? "#94a3b8" : "#1e293b",
-                color: "#fff", border: "none", borderRadius: 6,
-                cursor: saving ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
+                padding: "9px 24px", background: saving ? "#94a3b8" : "#1e293b",
+                color: "#fff", border: "none", borderRadius: 6, cursor: saving ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600,
               }}>{saving ? "저장중..." : "수정완료"}</button>
             </div>
           </div>

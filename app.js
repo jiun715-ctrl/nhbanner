@@ -44,6 +44,7 @@ const bannerSchema = new mongoose.Schema({
   linkType: String,
   linkUrl: String,
   linkData: String,
+  landingPage: String,
   createdBy: { type: String, index: true },
   createdAt: String,
   updatedAt: String,
@@ -78,7 +79,7 @@ const BANNER_TYPE_AUTO = {
   interest: "99",
 };
 
-/* 🔥 관심종목탭 전용: 희망 탭 옵션 & 슬롯 매핑 */
+/* 🔥 관심종목탭 전용: 희망 탭 옵션 */
 const INTEREST_TAB_OPTIONS = [
   { value: "realtime_best", label: "실시간BEST" },
   { value: "expert_stock", label: "투자고수종목" },
@@ -91,7 +92,6 @@ const INTEREST_TAB_OPTIONS = [
 ];
 
 const INTEREST_RANK_LABELS = INTEREST_TAB_OPTIONS.map(o => o.label);
-
 const INTEREST_SLOT_VALUES = INTEREST_TAB_OPTIONS.map(o => o.value);
 
 /* 🔥 배너 타입별 최대 노출일수 */
@@ -104,9 +104,33 @@ const MAX_EXPOSURE_DAYS = {
 /* 🔥 관리자 Slack User ID (등록 알림 수신) */
 const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "";
 
+/* 🔥 바로가기속성 옵션 (non-interest) */
+const LINK_TYPE_OPTIONS = [
+  { value: "screen_mts", label: "화면오픈(MTS화면)" },
+  { value: "popup_event", label: "팝업오픈(이벤트)" },
+  { value: "popup_notice", label: "팝업오픈(공지사항)" },
+  { value: "popup_content", label: "팝업오픈(콘텐츠)" },
+  { value: "url_external", label: "URL(외부페이지)" },
+];
+
+/* 🔥 바로가기속성별 자동입력 값 */
+const LINK_AUTO_FILL = {
+  popup_event:  { linkData: "X12m921g", landingPage: "E^000" },
+  popup_notice: { linkData: "X12m921a", landingPage: "N^0000" },
+  popup_content:{ linkData: "X08m5132", landingPage: "" },
+};
+
 function getDesiredTabLabel(value) {
   const found = INTEREST_TAB_OPTIONS.find(o => o.value === value);
   return found ? found.label : value || "—";
+}
+
+function getLinkTypeLabel(value) {
+  const found = LINK_TYPE_OPTIONS.find(o => o.value === value);
+  if (found) return found.label;
+  // interest용 or 구버전
+  const legacy = { "screen": "화면오픈", "popup": "팝업오픈", "frame_popup": "프레임팝업", "url": "URL" };
+  return legacy[value] || value || "—";
 }
 
 /* ======================================================
@@ -238,7 +262,6 @@ receiver.router.post("/slack/events", (req, res) => {
   res.sendStatus(200);
 });
 
-
 /* ======================================================
  * 엑셀 메일 전송 API
  * ====================================================== */
@@ -335,7 +358,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
     "bannerDesc", "productType", "purpose",
     "desiredTab", "desiredTabCustom",
     "startDate", "endDate", "linkType",
-    "linkUrl", "linkData"
+    "linkUrl", "linkData", "landingPage"
   ];
 
   updateKeys.forEach(key => {
@@ -363,12 +386,11 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
       productType: "상품구분",
       purpose: "목적",
       desiredTab: "희망 탭",
-      desiredTabCustom: "기타 희망 탭",
       bannerType: "배너구분",
       mediaType: "매체유형",
       linkType: "바로가기속성",
-      linkUrl: "이벤트이미지url",
-      linkData: "링크데이터",
+      linkData: "바로가기링크",
+      landingPage: "랜딩페이지",
       eventCode: "이벤트코드",
     };
 
@@ -528,12 +550,10 @@ function getDisplayWidth(str) {
       if (ch >= 'A' && ch <= 'Z') upperCount++;
     }
   }
-  // Slack 코드블록 폰트 보정: 대문자 3자당 +1 (패딩 줄임)
   w += Math.floor(upperCount / 3);
   return w;
 }
 
-/* 🔥 KST 오늘 날짜 (YYYY-MM-DD) */
 function getTodayKST() {
   return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
@@ -654,8 +674,7 @@ async function publishHome(userId) {
             type: "mrkdwn",
             text:
               "*5. 등록 시 주의사항*\n" +
-              "  • 모든 신청건이 확정되는 것은 아님.\n" +
-              "      본신청 마감 이후 캘린더에 확정본만 남게 됨\n" +
+              "  • 모든 신청건이 확정되는 것은 아님. 본신청 마감 이후 캘린더에 확정본만 남게 됨\n" +
               "  • 추후 상품종류(국내/해외주식 등), 목적(세일즈, 제도개선 안내 등), 전환율 등 운영상황에 따라\n" +
               "      관리자/사용자 간 논의 하에 우선순위 기준이 변경될 수 있음.",
           },
@@ -667,7 +686,6 @@ async function publishHome(userId) {
 
 /* ======================================================
  * 배너 메인 화면 (주간리스트)
- * 🔥 interest: desiredTab 기준 슬롯 매칭 (6슬롯)
  * ====================================================== */
 
 async function publishBannerMain(userId, type) {
@@ -726,8 +744,7 @@ async function publishBannerMain(userId, type) {
 
     let lines;
 
-if (isInterest) {
-      // 🔥 8슬롯 전부 고정 (코드블록 정렬)
+    if (isInterest) {
       const allLines = INTEREST_TAB_OPTIONS.map((tab) => {
         const found = dayItems.find(item => item.desiredTab === tab.value);
         return { label: tab.label, value: found ? "등록됨" : "—" };
@@ -820,7 +837,6 @@ async function publishMyReservations(userId, type) {
       const mediaLabel = { "common": "공통", "tree": "나무", "n2": "N2" }[item.mediaType] || item.mediaType || "";
       const priorityText = item.mediaType === "n2" ? "우선순위: —" : `우선순위: ${item.priority || "—"}`;
 
-      // 🔥 interest: 희망 탭 라벨 표시
       let displayName = item.banner;
       if (item._type === "interest") {
         displayName = getDesiredTabLabel(item.desiredTab);
@@ -904,7 +920,7 @@ app.action("filter_my_interest", async ({ ack, body }) => {
 });
 
 /* ======================================================
- * 🔥 등록/수정 모달 블록 빌더 (interest 분기)
+ * 🔥 등록/수정 모달 블록 빌더
  * ====================================================== */
 
 function buildModalBlocks(type, item) {
@@ -912,7 +928,7 @@ function buildModalBlocks(type, item) {
   const isEdit = !!item;
   const blocks = [];
 
-  // 매체유형
+  // ── 매체유형 ──
   const mediaTypeElement = {
     type: "static_select",
     action_id: "media_type",
@@ -924,10 +940,7 @@ function buildModalBlocks(type, item) {
   };
   if (isEdit && item.mediaType) {
     const mtLabel = { "common": "공통", "tree": "나무", "n2": "N2" }[item.mediaType] || item.mediaType;
-    mediaTypeElement.initial_option = {
-      text: { type: "plain_text", text: mtLabel },
-      value: item.mediaType,
-    };
+    mediaTypeElement.initial_option = { text: { type: "plain_text", text: mtLabel }, value: item.mediaType };
   } else {
     mediaTypeElement.placeholder = { type: "plain_text", text: "선택하세요" };
   }
@@ -939,13 +952,13 @@ function buildModalBlocks(type, item) {
     element: mediaTypeElement,
   });
 
-  // 배너명 (interest 제외)
+  // ── 배너명 (interest 제외) ──
   if (!isInterest) {
     blocks.push({
       type: "input",
       block_id: "banner_block",
-      label: { type: "plain_text", text: "배너명" },
-      hint: { type: "plain_text", text: "플로팅 배너인 경우 반드시 줄바꿈 심볼을 넣어주세요.\nex) 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
+      label: { type: "plain_text", text: "배너명(볼드체로 표시되는 최상단 문장. 최대 12자)" },
+      hint: { type: "plain_text", text: "두 줄로 희망 시 줄바꿈 심볼 '\\n' 을 넣어주세요. 최대 9자\nex) 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
       element: {
         type: "plain_text_input",
         action_id: "banner",
@@ -956,12 +969,12 @@ function buildModalBlocks(type, item) {
     });
   }
 
-  // 배너내용 (interest 제외)
+  // ── 배너내용 (interest 제외) ──
   if (!isInterest) {
     blocks.push({
       type: "input",
       block_id: "banner_desc_block",
-      label: { type: "plain_text", text: "배너내용" },
+      label: { type: "plain_text", text: "배너내용(배너명 밑에 표시되는 문장. 줄당 최대 12자)" },
       hint: { type: "plain_text", text: "ex) 이제 환전 걱정할 필요 없어요" },
       element: {
         type: "plain_text_input",
@@ -972,7 +985,7 @@ function buildModalBlocks(type, item) {
     });
   }
 
-  // 상품구분
+  // ── 상품구분 ──
   const ptElement = {
     type: "static_select",
     action_id: "product_type",
@@ -991,10 +1004,7 @@ function buildModalBlocks(type, item) {
       "both_stock": "국내/해외주식", "financial": "금융상품",
       "pension": "연금", "etc": "기타"
     }[item.productType] || item.productType;
-    ptElement.initial_option = {
-      text: { type: "plain_text", text: ptLabel },
-      value: item.productType,
-    };
+    ptElement.initial_option = { text: { type: "plain_text", text: ptLabel }, value: item.productType };
   } else {
     ptElement.placeholder = { type: "plain_text", text: "선택하세요" };
   }
@@ -1005,7 +1015,7 @@ function buildModalBlocks(type, item) {
     element: ptElement,
   });
 
-  // 목적
+  // ── 목적 ──
   const purposeElement = {
     type: "static_select",
     action_id: "purpose",
@@ -1021,10 +1031,7 @@ function buildModalBlocks(type, item) {
       "sales_marketing": "세일즈마케팅", "info": "정보제공(제도 등)",
       "service": "서비스활성화", "etc": "기타"
     }[item.purpose] || item.purpose;
-    purposeElement.initial_option = {
-      text: { type: "plain_text", text: purLabel },
-      value: item.purpose,
-    };
+    purposeElement.initial_option = { text: { type: "plain_text", text: purLabel }, value: item.purpose };
   } else {
     purposeElement.placeholder = { type: "plain_text", text: "선택하세요" };
   }
@@ -1035,7 +1042,7 @@ function buildModalBlocks(type, item) {
     element: purposeElement,
   });
 
-  // 🔥 희망 탭 (interest만)
+  // ── 희망 탭 (interest만) ──
   if (isInterest) {
     const dtElement = {
       type: "static_select",
@@ -1047,10 +1054,7 @@ function buildModalBlocks(type, item) {
     };
     if (isEdit && item.desiredTab) {
       const dtLabel = getDesiredTabLabel(item.desiredTab);
-      dtElement.initial_option = {
-        text: { type: "plain_text", text: dtLabel },
-        value: item.desiredTab,
-      };
+      dtElement.initial_option = { text: { type: "plain_text", text: dtLabel }, value: item.desiredTab };
     } else {
       dtElement.placeholder = { type: "plain_text", text: "선택하세요" };
     }
@@ -1060,10 +1064,9 @@ function buildModalBlocks(type, item) {
       label: { type: "plain_text", text: "희망 탭" },
       element: dtElement,
     });
-
   }
 
-  // 노출시작 희망일자
+  // ── 노출시작 희망일자 ──
   blocks.push({
     type: "input",
     block_id: "start_date_block",
@@ -1076,12 +1079,12 @@ function buildModalBlocks(type, item) {
     },
   });
 
-  // 노출종료 희망일자
+  // ── 노출종료 희망일자 ──
   blocks.push({
     type: "input",
     block_id: "end_date_block",
     label: { type: "plain_text", text: "노출종료 희망일자" },
-    hint: { type: "plain_text", text: "• 고객피로도 조절 차원에서 노출 기간이 제한됩니다.\n  (홈상단/관심그룹탭 15일, 플로팅 3일)\n• 그 이상을 원하실 경우 추가로 배너를 등록해주세요"},
+    hint: { type: "plain_text", text: "• 고객피로도 조절 차원에서 노출 기간이 제한됩니다.\n  (홈상단/관심그룹탭 15일, 플로팅 3일)\n• 그 이상을 원하실 경우 추가로 배너를 등록해주세요" },
     element: {
       type: "datepicker",
       action_id: "end_date",
@@ -1089,18 +1092,16 @@ function buildModalBlocks(type, item) {
     },
   });
 
-  // 바로가기속성
+  // ── 바로가기속성 ──
   const linkOptions = isInterest
     ? [
         { text: { type: "plain_text", text: "URL[배너형]" }, value: "url" },
         { text: { type: "plain_text", text: "화면[배너형]" }, value: "screen" },
       ]
-    : [
-        { text: { type: "plain_text", text: "화면오픈" }, value: "screen" },
-        { text: { type: "plain_text", text: "팝업오픈" }, value: "popup" },
-        { text: { type: "plain_text", text: "프레임팝업" }, value: "frame_popup" },
-        { text: { type: "plain_text", text: "URL" }, value: "url" },
-      ];
+    : LINK_TYPE_OPTIONS.map(o => ({
+        text: { type: "plain_text", text: o.label },
+        value: o.value,
+      }));
 
   const ltElement = {
     type: "static_select",
@@ -1112,10 +1113,7 @@ function buildModalBlocks(type, item) {
     const validValues = linkOptions.map(o => o.value);
     if (validValues.includes(item.linkType)) {
       const ltLabel = linkOptions.find(o => o.value === item.linkType)?.text.text || item.linkType;
-      ltElement.initial_option = {
-        text: { type: "plain_text", text: ltLabel },
-        value: item.linkType,
-      };
+      ltElement.initial_option = { text: { type: "plain_text", text: ltLabel }, value: item.linkType };
     }
   }
   if (!ltElement.initial_option) {
@@ -1125,26 +1123,85 @@ function buildModalBlocks(type, item) {
     type: "input",
     block_id: "link_type_block",
     label: { type: "plain_text", text: "바로가기속성" },
+    hint: { type: "plain_text", text: isInterest
+      ? "URL[배너형] 또는 화면[배너형]을 선택하세요."
+      : "• 화면오픈(MTS화면), 팝업오픈(이벤트/공지/콘텐츠), URL(외부페이지)" },
     element: ltElement,
   });
 
-  // 이벤트이미지url
+  // ── 바로가기링크 ──
   blocks.push({
     type: "input",
-    block_id: "link_url_block",
+    block_id: "link_data_block",
     optional: true,
-    label: { type: "plain_text", text: "이벤트이미지url" },
-    hint: { type: "plain_text", text: "• 노출 4일 전 알림이 갈 예정입니다.\n  알림을 받으실 경우 실제 링크를 입력해주세요." },
+    label: { type: "plain_text", text: "바로가기링크" },
+    hint: { type: "plain_text", text: isInterest
+      ? "링크 정보를 입력하세요."
+      : "• 화면오픈(MTS화면): 화면번호 입력 (ex: X08m5132)\n• 팝업오픈 선택 시: 자동입력됨 (수정불요)\n• URL(외부페이지): 외부 URL 입력" },
     element: {
       type: "plain_text_input",
-      action_id: "link_url",
-      multiline: true,
-      ...(isEdit ? { initial_value: item.linkUrl || "" } : {}),
-      placeholder: { type: "plain_text", text: "URL을 입력하세요" },
+      action_id: "link_data",
+      ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
+      placeholder: { type: "plain_text", text: isInterest
+        ? "링크를 입력하세요"
+        : "화면번호 또는 URL을 입력하세요" },
+    },
+  });
+
+  // ── 랜딩페이지 ──
+  blocks.push({
+    type: "input",
+    block_id: "landing_page_block",
+    optional: true,
+    label: { type: "plain_text", text: "랜딩페이지" },
+    hint: { type: "plain_text", text: "• 팝업오픈(이벤트/공지) 선택 시: 자동입력됨 (수정불요)\n• 팝업오픈(콘텐츠): 모바일URL 입력 (선택)\n  ex) https://m.mynamuh.com/customer/event/eventView?mNo=482\n• 그 외: 입력불요\n• 랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n  그 외 문의는 담당자(김수연 주임)에게 문의해주세요" },
+    element: {
+      type: "plain_text_input",
+      action_id: "landing_page",
+      ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
+      placeholder: { type: "plain_text", text: "필요 시 입력하세요" },
+    },
+  });
+
+  // ── 배너이미지파일 (공지 텍스트만, 입력창 없음) ──
+  blocks.push({
+    type: "section",
+    block_id: "image_notice_block",
+    text: {
+      type: "mrkdwn",
+      text: "*배너이미지파일*\n📢 배너 노출 4일 전 DM을 통해 알람이 갈 예정입니다.\n알람을 받으실 경우 담당자(김수연 주임)에게 이미지 파일(png)을 전달해주세요.",
     },
   });
 
   return blocks;
+}
+
+/* ======================================================
+ * 🔥 등록/수정 시 바로가기속성에 따른 자동입력 처리
+ * ====================================================== */
+
+function applyLinkAutoFill(linkType, userLinkData, userLandingPage) {
+  let finalLinkData = userLinkData || "";
+  let finalLandingPage = userLandingPage || "";
+
+  const autoFill = LINK_AUTO_FILL[linkType];
+  if (autoFill) {
+    // 팝업오픈 계열: linkData 강제 덮어쓰기
+    finalLinkData = autoFill.linkData;
+    // landingPage: 고정값이 있으면 덮어쓰기, 없으면(콘텐츠) 유저 입력 유지
+    if (autoFill.landingPage) {
+      finalLandingPage = autoFill.landingPage;
+    }
+  }
+
+  // 화면오픈, URL: 유저 입력 그대로
+  // screen_mts, url_external → finalLinkData = userLinkData (이미 설정됨)
+  // 이외 랜딩페이지가 불필요한 경우 빈값
+  if (linkType === "screen_mts" || linkType === "url_external") {
+    finalLandingPage = "";
+  }
+
+  return { linkData: finalLinkData, landingPage: finalLandingPage };
 }
 
 /* ======================================================
@@ -1295,7 +1352,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     const v = view.state.values;
     const isInterest = type === "interest";
 
-    // 🔥 날짜 유효성 검사 (시작일: 오늘 이후, 종료일: 최대 노출일 이내)
     const startDate = v.start_date_block.start_date.selected_date;
     const endDate = v.end_date_block.end_date.selected_date;
     const todayKST = getTodayKST();
@@ -1323,6 +1379,14 @@ Object.keys(BANNER_TYPES).forEach((type) => {
 
     const mediaType = v.media_type_block.media_type.selected_option?.value || "";
     const isN2 = mediaType === "n2";
+    const linkType = v.link_type_block.link_type.selected_option?.value || "";
+
+    // 🔥 바로가기링크/랜딩페이지 자동입력 처리
+    const userLinkData = v.link_data_block?.link_data?.value || "";
+    const userLandingPage = v.landing_page_block?.landing_page?.value || "";
+    const { linkData, landingPage } = isInterest
+      ? { linkData: userLinkData, landingPage: userLandingPage }
+      : applyLinkAutoFill(linkType, userLinkData, userLandingPage);
 
     const list = await loadBannerData(type);
     const nonN2List = list.filter(item => item.mediaType !== "n2");
@@ -1343,22 +1407,22 @@ Object.keys(BANNER_TYPES).forEach((type) => {
       purpose: v.purpose_block.purpose.selected_option?.value || "",
       desiredTab: isInterest ? (v.desired_tab_block?.desired_tab?.selected_option?.value || "") : "",
       desiredTabCustom: "",
-      startDate: v.start_date_block.start_date.selected_date,
-      endDate: v.end_date_block.end_date.selected_date,
-      linkType: v.link_type_block.link_type.selected_option?.value || "",
-      linkUrl: v.link_url_block?.link_url?.value || "",
-      linkData: "",
+      startDate,
+      endDate,
+      linkType,
+      linkUrl: "",
+      linkData,
+      landingPage,
       createdBy: body.user.id,
       createdAt: new Date().toISOString(),
     };
 
     await addBannerItem(type, newItem);
 
-    // 🔥 관리자에게 등록 알림 DM
     if (ADMIN_USER_ID) {
       try {
         const displayName = isInterest
-          ? getDesiredTabLabel(newItem.desiredTab) + (newItem.desiredTabCustom ? ` (${newItem.desiredTabCustom})` : "")
+          ? getDesiredTabLabel(newItem.desiredTab)
           : newItem.banner || "—";
         const userName = await getSlackUserName(body.user.id);
         await app.client.chat.postMessage({
@@ -1388,7 +1452,6 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
   const v = view.state.values;
   const isInterest = type === "interest";
 
-  // 🔥 날짜 유효성 검사
   const startDate = v.start_date_block.start_date.selected_date;
   const endDate = v.end_date_block.end_date.selected_date;
   const todayKST = getTodayKST();
@@ -1416,8 +1479,15 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
 
   const mediaType = v.media_type_block.media_type.selected_option?.value || "";
   const isN2 = mediaType === "n2";
+  const linkType = v.link_type_block.link_type.selected_option?.value || "";
 
-  // 🔥 날짜 변경 여부 확인 → 해당일 기존 배너 있으면 후순위
+  // 🔥 바로가기링크/랜딩페이지 자동입력
+  const userLinkData = v.link_data_block?.link_data?.value || "";
+  const userLandingPage = v.landing_page_block?.landing_page?.value || "";
+  const { linkData, landingPage } = isInterest
+    ? { linkData: userLinkData, landingPage: userLandingPage }
+    : applyLinkAutoFill(linkType, userLinkData, userLandingPage);
+
   const list = await loadBannerData(type);
   const oldItem = list.find(i => i.id === id);
   const datesChanged = oldItem &&
@@ -1429,8 +1499,9 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
     purpose: v.purpose_block.purpose.selected_option?.value || "",
     startDate,
     endDate,
-    linkType: v.link_type_block.link_type.selected_option?.value || "",
-    linkUrl: v.link_url_block?.link_url?.value || "",
+    linkType,
+    linkData,
+    landingPage,
     priority: isN2 ? null : undefined,
     updatedAt: new Date().toISOString(),
   };
@@ -1443,7 +1514,6 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
     updates.bannerDesc = v.banner_desc_block?.banner_desc?.value || "";
   }
 
-  // 🔥 날짜 변경 + 해당일 기존 배너 존재 시 → 후순위 배정
   if (datesChanged && !isN2) {
     const overlapping = list.filter(i =>
       i.id !== id &&
@@ -1468,7 +1538,7 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
 });
 
 /* ======================================================
- * 🔔 4일 전 리마인더 DM (1시간마다 체크, 하루 1회 발송)
+ * 🔔 4일 전 리마인더 DM
  * ====================================================== */
 
 let lastReminderCheckDate = "";
@@ -1476,12 +1546,9 @@ let lastReminderCheckDate = "";
 async function checkReminders() {
   try {
     const todayStr = getTodayKST();
-
-    // 하루에 한 번만 실행
     if (lastReminderCheckDate === todayStr) return;
     lastReminderCheckDate = todayStr;
 
-    // 4일 뒤 날짜 계산
     const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
     const target = new Date(kstNow);
     target.setDate(target.getDate() + 4);
@@ -1501,7 +1568,7 @@ async function checkReminders() {
               channel: item.createdBy,
               text:
                 `📢 *"${displayName}"* 노출 시작 4일 전입니다.\n` +
-                `이미지URL을 포함하여 최종 확정된 내용으로 수정해주세요.`,
+                `담당자(김수연 주임)에게 이미지 파일(png)을 전달해주세요.`,
             });
             console.log(`✅ 리마인더 발송: ${displayName} → ${item.createdBy}`);
           } catch (e) {
@@ -1524,7 +1591,6 @@ async function checkReminders() {
   await app.start(PORT);
   console.log(`⚡ Slack App 실행중 (port ${PORT})`);
 
-  // 🔔 리마인더: 1시간마다 체크, 서버 시작 15초 후 첫 체크
   setInterval(checkReminders, 60 * 60 * 1000);
   setTimeout(checkReminders, 15000);
 })();
