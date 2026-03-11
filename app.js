@@ -923,7 +923,7 @@ app.action("filter_my_interest", async ({ ack, body }) => {
  * 🔥 등록/수정 모달 블록 빌더
  * ====================================================== */
 
-function buildModalBlocks(type, item) {
+function buildModalBlocks(type, item, selectedLinkType) {
   const isInterest = type === "interest";
   const isEdit = !!item;
   const blocks = [];
@@ -958,7 +958,7 @@ function buildModalBlocks(type, item) {
       type: "input",
       block_id: "banner_block",
       label: { type: "plain_text", text: "배너명(볼드체로 표시되는 최상단 문장. 최대 12자)" },
-      hint: { type: "plain_text", text: "두 줄로 희망 시 줄바꿈 심볼 '\\n' 을 넣어주세요. 최대 9자\nex) 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
+      hint: { type: "plain_text", text: "두 줄로 희망 시 줄바꿈 심볼 '\\n' 을 넣어주세요. 최대 9자\nex) 트래블월렛 '여행자금 모으기' \\n서비스 소개'" },
       element: {
         type: "plain_text_input",
         action_id: "banner",
@@ -1093,77 +1093,139 @@ function buildModalBlocks(type, item) {
   });
 
   // ── 바로가기속성 ──
-  const linkOptions = isInterest
-    ? [
-        { text: { type: "plain_text", text: "URL[배너형]" }, value: "url" },
-        { text: { type: "plain_text", text: "화면[배너형]" }, value: "screen" },
-      ]
-    : LINK_TYPE_OPTIONS.map(o => ({
-        text: { type: "plain_text", text: o.label },
-        value: o.value,
-      }));
-
-  const ltElement = {
-    type: "static_select",
-    action_id: "link_type",
-    options: linkOptions,
-  };
-
-  if (isEdit && item.linkType) {
-    const validValues = linkOptions.map(o => o.value);
-    if (validValues.includes(item.linkType)) {
-      const ltLabel = linkOptions.find(o => o.value === item.linkType)?.text.text || item.linkType;
-      ltElement.initial_option = { text: { type: "plain_text", text: ltLabel }, value: item.linkType };
-    }
-  }
-  if (!ltElement.initial_option) {
-    ltElement.placeholder = { type: "plain_text", text: "선택하세요" };
-  }
-  blocks.push({
+  const currentLinkType = isEdit ? (item.linkType || "") : "";
+  // dispatch_action으로 선택 시 모달 갱신
+  const ltBlock = {
     type: "input",
     block_id: "link_type_block",
+    dispatch_action: true,
     label: { type: "plain_text", text: "바로가기속성" },
     hint: { type: "plain_text", text: isInterest
       ? "URL[배너형] 또는 화면[배너형]을 선택하세요."
       : "• 화면오픈(MTS화면), 팝업오픈(이벤트/공지/콘텐츠), URL(외부페이지)" },
     element: ltElement,
-  });
+  };
+  blocks.push(ltBlock);
+
+  // 🔥 선택된 linkType에 따라 바로가기링크/랜딩페이지 동적 생성
+  const selectedLT = selectedLinkType || (isEdit ? (item.linkType || "") : "");
+  const autoFill = LINK_AUTO_FILL[selectedLinkType];
+  const isAutoLink = autoFill && autoFill.linkData;
+  const isAutoLanding = autoFill && autoFill.landingPage;
+  const isContentLanding = selectedLinkType === "popup_content";
+  const isNoLanding = selectedLinkType === "screen_mts" || selectedLinkType === "url_external" || selectedLinkType === "" || selectedLinkType === "url" || selectedLinkType === "screen";
 
   // ── 바로가기링크 ──
-  blocks.push({
-    type: "input",
-    block_id: "link_data_block",
-    optional: true,
-    label: { type: "plain_text", text: "바로가기링크" },
-    hint: { type: "plain_text", text: isInterest
-      ? "링크 정보를 입력하세요."
-      : "• 화면오픈(MTS화면): 화면번호 입력 (ex: X08m5132)\n• 팝업오픈 선택 시: 자동입력됨 (수정불요)\n• URL(외부페이지): 외부 URL 입력" },
-    element: {
-      type: "plain_text_input",
-      action_id: "link_data",
-      ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
-      placeholder: { type: "plain_text", text: isInterest
-        ? "링크를 입력하세요"
-        : "화면번호 또는 URL을 입력하세요" },
-    },
-  });
+  if (isAutoLink) {
+    // 팝업오픈 계열: 고정값 표시 (수정불가)
+    blocks.push({
+      type: "section",
+      block_id: "link_data_block",
+      text: {
+        type: "mrkdwn",
+        text: `*바로가기링크*\n\`${autoFill.linkData}\`  _(자동입력 · 수정불요)_`,
+      },
+    });
+  } else if (selectedLinkType === "url_external") {
+    blocks.push({
+      type: "input",
+      block_id: "link_data_block",
+      optional: true,
+      label: { type: "plain_text", text: "바로가기링크" },
+      element: {
+        type: "plain_text_input",
+        action_id: "link_data",
+        ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
+        placeholder: { type: "plain_text", text: "외부페이지 URL을 넣어주세요. ex) https://..." },
+      },
+    });
+  } else if (selectedLinkType === "screen_mts") {
+    blocks.push({
+      type: "input",
+      block_id: "link_data_block",
+      optional: true,
+      label: { type: "plain_text", text: "바로가기링크" },
+      element: {
+        type: "plain_text_input",
+        action_id: "link_data",
+        ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
+        placeholder: { type: "plain_text", text: "화면번호를 입력해주세요. ex) X08m5132" },
+      },
+    });
+  } else {
+    // 미선택 또는 interest
+    blocks.push({
+      type: "input",
+      block_id: "link_data_block",
+      optional: true,
+      label: { type: "plain_text", text: "바로가기링크" },
+      element: {
+        type: "plain_text_input",
+        action_id: "link_data",
+        ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
+        placeholder: { type: "plain_text", text: "링크를 입력하세요" },
+      },
+    });
+  }
 
   // ── 랜딩페이지 ──
-  blocks.push({
-    type: "input",
-    block_id: "landing_page_block",
-    optional: true,
-    label: { type: "plain_text", text: "랜딩페이지" },
-    hint: { type: "plain_text", text: "• 팝업오픈(이벤트/공지) 선택 시: 자동입력됨 (수정불요)\n• 팝업오픈(콘텐츠): 모바일URL 입력 (선택)\n  ex) https://m.mynamuh.com/customer/event/eventView?mNo=482\n• 그 외: 입력불요\n• 랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n  그 외 문의는 담당자(김수연 주임)에게 문의해주세요" },
-    element: {
-      type: "plain_text_input",
-      action_id: "landing_page",
-      ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
-      placeholder: { type: "plain_text", text: "필요 시 입력하세요" },
-    },
-  });
+  if (isAutoLanding) {
+    // 이벤트/공지: 고정값 표시 (수정불가)
+    blocks.push({
+      type: "section",
+      block_id: "landing_page_block",
+      text: {
+        type: "mrkdwn",
+        text: `*랜딩페이지*\n\`${autoFill.landingPage}\`  _(자동입력 · 수정불요)_`,
+      },
+    });
+    blocks.push({
+      type: "context",
+      elements: [{ type: "mrkdwn", text: "랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며, 그 외 문의는 담당자(김수연 주임)에게 문의해주세요" }],
+    });
+  } else if (isContentLanding) {
+    // 콘텐츠: 입력 가능
+    blocks.push({
+      type: "input",
+      block_id: "landing_page_block",
+      optional: true,
+      label: { type: "plain_text", text: "랜딩페이지" },
+      hint: { type: "plain_text", text: "랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n그 외 문의는 담당자(김수연 주임)에게 문의해주세요" },
+      element: {
+        type: "plain_text_input",
+        action_id: "landing_page",
+        ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
+        placeholder: { type: "plain_text", text: "(선택사항) 모바일URL을 입력해주세요. ex) https://m.mynamuh.com/customer/event/eventView?mNo=482" },
+      },
+    });
+  } else if (isNoLanding) {
+    // 화면오픈/URL/미선택: 공란 수정불가
+    blocks.push({
+      type: "section",
+      block_id: "landing_page_block",
+      text: {
+        type: "mrkdwn",
+        text: "*랜딩페이지*\n_(해당 없음)_",
+      },
+    });
+  } else {
+    // 기본
+    blocks.push({
+      type: "input",
+      block_id: "landing_page_block",
+      optional: true,
+      label: { type: "plain_text", text: "랜딩페이지" },
+      hint: { type: "plain_text", text: "랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n그 외 문의는 담당자(김수연 주임)에게 문의해주세요" },
+      element: {
+        type: "plain_text_input",
+        action_id: "landing_page",
+        ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
+        placeholder: { type: "plain_text", text: "필요 시 입력하세요" },
+      },
+    });
+  }
 
-  // ── 배너이미지파일 (공지 텍스트만, 입력창 없음) ──
+  // ── 배너이미지파일 (공지) ──
   blocks.push({
     type: "section",
     block_id: "image_notice_block",
@@ -1321,6 +1383,51 @@ app.view("admin_password_check", async ({ ack, view, body }) => {
       ],
     },
   });
+});
+
+app.action("link_type", async ({ ack, body, client }) => {
+  await ack();
+
+  const view = body.view;
+  const v = view.state.values;
+  const meta = view.private_metadata ? JSON.parse(view.private_metadata) : {};
+  const type = meta.type || view.callback_id?.replace("register_modal_", "").replace("edit_modal_", "") || "home";
+  const selectedLinkType = v.link_type_block?.link_type?.selected_option?.value || "";
+
+  // 기존 item 복원 (수정 모달인 경우)
+  let item = null;
+  if (meta.id) {
+    const list = await loadBannerData(type);
+    item = list.find(i => i.id === meta.id);
+    if (item) {
+      // 현재 모달 입력값 반영
+      item = { ...item };
+      Object.keys(v).forEach(blockId => {
+        const block = v[blockId];
+        Object.keys(block).forEach(actionId => {
+          const val = block[actionId];
+          if (val.selected_option) item[actionId] = val.selected_option.value;
+          else if (val.selected_date) item[actionId === "start_date" ? "startDate" : "endDate"] = val.selected_date;
+          else if (val.value !== undefined) item[actionId] = val.value;
+        });
+      });
+    }
+  }
+
+  // 모달 블록 재생성
+  const newBlocks = buildModalBlocks(type, item, selectedLinkType);
+
+  try {
+    await client.views.update({
+      view_id: view.id,
+      view: {
+        ...view,
+        blocks: newBlocks,
+      },
+    });
+  } catch (e) {
+    console.log("모달 업데이트 실패:", e.message);
+  }
 });
 
 app.action("open_admin_page", async ({ ack }) => {
