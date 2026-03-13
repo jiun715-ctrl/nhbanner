@@ -1135,7 +1135,7 @@ function buildModalBlocks(type, item) {
     optional: true,
     label: { type: "plain_text", text: "바로가기링크" },
     hint: { type: "plain_text", text: isInterest
-      ? "링크 정보를 입력하세요."
+      ? " 화면[배너형]: 화면번호 입력 (ex: X08m5132), URL[배너형]: 외부 URL 입력"
       : "• 화면오픈(MTS화면): 화면번호 입력 (ex: X08m5132)\n• 팝업오픈(이벤트): X12m921g 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): X12m921a 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): X08m5132 자동입력됨 — 비워두세요\n• URL(외부페이지): 외부 URL 입력" },
     element: {
       type: "plain_text_input",
@@ -1143,7 +1143,7 @@ function buildModalBlocks(type, item) {
       ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
       placeholder: { type: "plain_text", text: isInterest
         ? "링크를 입력하세요"
-        : "화면오픈(MTS화면), URL(외부페이지) 선택 시에만 입력해주세요. 그 외 입력 X." },
+        : "하단 설명을 참고해서 입력해주세요." },
     },
   });
 
@@ -1158,7 +1158,7 @@ function buildModalBlocks(type, item) {
       type: "plain_text_input",
       action_id: "landing_page",
       ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
-      placeholder: { type: "plain_text", text: "팝업오픈(콘텐츠)는 모바일URL 입력(선택), 그 외 입력 X." },
+      placeholder: { type: "plain_text", text: "하단 설명을 참고해서 입력해주세요." },
     },
   });
 
