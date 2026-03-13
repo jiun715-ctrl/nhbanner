@@ -652,8 +652,7 @@ async function publishHome(userId) {
               "  • *[홈상단 배너]* 최대 15일\n" +
               "  • *[플로팅 배너]* 최대 3일\n" +
               "  • *[관심종목탭]* 최대 15일\n" +
-              "      ⚠️ (공통) 같은 월 2회 이상 유사배너 노출 시, 3번째부터 후순위 변경 가능\n" +
-              "                      2순위 신청자가 있을 경우에 한함, 유사 여부는 관리자 판단",
+              "      ⚠️ (공통) 유사배너를 반복해서 올리는 경우 관리자 판단 하에 우선순위가 변경될 수 있습니다."                 
           },
         },
         { type: "divider" },
@@ -958,7 +957,7 @@ function buildModalBlocks(type, item) {
       type: "input",
       block_id: "banner_block",
       label: { type: "plain_text", text: "배너명(볼드체로 표시되는 최상단 문장. 최대 12자)" },
-      hint: { type: "plain_text", text: "두 줄로 희망 시 줄바꿈 심볼 '\\n' 을 넣어주세요. 최대 9자\nex) 트래블월렛 '여행자금 모으기'/n서비스 소개'" },
+      hint: { type: "plain_text", text: "두 줄로 희망 시 줄바꿈 심볼 '\\n' 을 넣어주세요. 최대 9자\nex) 트래블월렛 '여행자금 모으기' \\n서비스 소개'" },
       element: {
         type: "plain_text_input",
         action_id: "banner",
@@ -974,8 +973,8 @@ function buildModalBlocks(type, item) {
     blocks.push({
       type: "input",
       block_id: "banner_desc_block",
-      label: { type: "plain_text", text: "배너내용(배너명 밑에 표시되는 문장. 줄당 최대 12자)" },
-      hint: { type: "plain_text", text: "ex) 이제 환전 걱정할 필요 없어요" },
+      label: { type: "plain_text", text: "배너내용(배너명 밑에 표시되는 문장. 줄당 최대 16자)" },
+      hint: { type: "plain_text", text: "ex) 이제 환전 걱정할 필요 없어요\\n나무 환전 이용해보세요." },
       element: {
         type: "plain_text_input",
         action_id: "banner_desc",
@@ -1144,7 +1143,7 @@ function buildModalBlocks(type, item) {
       ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
       placeholder: { type: "plain_text", text: isInterest
         ? "링크를 입력하세요"
-        : "팝업오픈 선택 시 비워두세요 (자동입력). 그 외 직접 입력." },
+        : "화면오픈(MTS화면), URL(외부페이지) 선택 시에만 입력해주세요. 그 외 입력 X." },
     },
   });
 
@@ -1159,7 +1158,7 @@ function buildModalBlocks(type, item) {
       type: "plain_text_input",
       action_id: "landing_page",
       ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
-      placeholder: { type: "plain_text", text: "팝업오픈(이벤트/공지) 시 비워두세요. 콘텐츠는 모바일URL 입력." },
+      placeholder: { type: "plain_text", text: "팝업오픈(콘텐츠)는 모바일URL 입력(선택), 그 외 입력 X." },
     },
   });
 
@@ -1169,7 +1168,7 @@ function buildModalBlocks(type, item) {
     block_id: "image_notice_block",
     text: {
       type: "mrkdwn",
-      text: "*배너이미지파일*\n📢 배너 노출 4일 전 DM을 통해 알람이 갈 예정입니다.\n알람을 받으실 경우 담당자(김수연 주임)에게 이미지 파일(png)을 전달해주세요.",
+      text: "*배너이미지파일*\n 배너 노출 4일 전 DM을 통해 알람이 갈 예정입니다.\n알람을 받으실 경우 담당자(김수연 주임)에게 이미지 파일(png)을 전달해주세요.",
     },
   });
 
