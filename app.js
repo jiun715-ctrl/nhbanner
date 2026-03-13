@@ -1135,7 +1135,7 @@ function buildModalBlocks(type, item) {
     optional: true,
     label: { type: "plain_text", text: "바로가기링크" },
     hint: { type: "plain_text", text: isInterest
-      ? " 화면[배너형]: 화면번호 입력 (ex: X08m5132), URL[배너형]: 외부 URL 입력"
+      ? "•화면[배너형]: 화면번호 입력 (ex: X08m5132)\nURL[배너형]: 외부 URL 입력"
       : "• 화면오픈(MTS화면): 화면번호 입력 (ex: X08m5132)\n• 팝업오픈(이벤트): X12m921g 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): X12m921a 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): X08m5132 자동입력됨 — 비워두세요\n• URL(외부페이지): 외부 URL 입력" },
     element: {
       type: "plain_text_input",
@@ -1147,20 +1147,22 @@ function buildModalBlocks(type, item) {
     },
   });
 
-  // ── 랜딩페이지 ──
-  blocks.push({
-    type: "input",
-    block_id: "landing_page_block",
-    optional: true,
-    label: { type: "plain_text", text: "랜딩페이지" },
-    hint: { type: "plain_text", text: "• 팝업오픈(이벤트): E^000 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): N^0000 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): 모바일URL 입력 (선택)\n  ex) https://m.mynamuh.com/customer/event/eventView?mNo=482\n• 그 외: 입력불요 (자동 공란)\n• 랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n  그 외 문의는 담당자(김수연 주임)에게 문의해주세요" },
-    element: {
-      type: "plain_text_input",
-      action_id: "landing_page",
-      ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
-      placeholder: { type: "plain_text", text: "하단 설명을 참고해서 입력해주세요." },
-    },
-  });
+  // ── 랜딩페이지 (interest 제외) ──
+  if (!isInterest) {
+    blocks.push({
+      type: "input",
+      block_id: "landing_page_block",
+      optional: true,
+      label: { type: "plain_text", text: "랜딩페이지" },
+      hint: { type: "plain_text", text: "• 팝업오픈(이벤트): E^000 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): N^0000 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): 모바일URL 입력 (선택)\n  ex) https://m.mynamuh.com/customer/event/eventView?mNo=482\n• 그 외: 입력불요 (자동 공란)\n• 랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n  그 외 문의는 담당자(김수연 주임)에게 문의해주세요" },
+      element: {
+        type: "plain_text_input",
+        action_id: "landing_page",
+        ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
+        placeholder: { type: "plain_text", text: "하단 설명을 참고해서 입력해주세요." },
+      },
+    });
+  }
 
   // ── 배너이미지파일 (공지 텍스트만, 입력창 없음) ──
   blocks.push({
@@ -1382,9 +1384,10 @@ Object.keys(BANNER_TYPES).forEach((type) => {
 
     // 🔥 바로가기링크/랜딩페이지 자동입력 처리
     const userLinkData = v.link_data_block?.link_data?.value || "";
-    const userLandingPage = v.landing_page_block?.landing_page?.value || "";
+    // interest는 랜딩페이지 블록이 없으므로 무조건 공란
+    const userLandingPage = isInterest ? "" : (v.landing_page_block?.landing_page?.value || "");
     const { linkData, landingPage } = isInterest
-      ? { linkData: userLinkData, landingPage: userLandingPage }
+      ? { linkData: userLinkData, landingPage: "" }
       : applyLinkAutoFill(linkType, userLinkData, userLandingPage);
 
     const list = await loadBannerData(type);
@@ -1482,9 +1485,10 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
 
   // 🔥 바로가기링크/랜딩페이지 자동입력
   const userLinkData = v.link_data_block?.link_data?.value || "";
-  const userLandingPage = v.landing_page_block?.landing_page?.value || "";
+  // interest는 랜딩페이지 블록이 없으므로 무조건 공란
+  const userLandingPage = isInterest ? "" : (v.landing_page_block?.landing_page?.value || "");
   const { linkData, landingPage } = isInterest
-    ? { linkData: userLinkData, landingPage: userLandingPage }
+    ? { linkData: userLinkData, landingPage: "" }
     : applyLinkAutoFill(linkType, userLinkData, userLandingPage);
 
   const list = await loadBannerData(type);
