@@ -220,12 +220,22 @@ async function updatePriorities(type, priorityMap) {
   }
 }
 
-async function recalcPriorities(type) {
+async function recalcPriorities(type, pinnedId = null) {
   const list = await loadBannerData(type);
   const nonN2 = list.filter(item => item.mediaType !== "n2");
   const priorityMap = [];
   nonN2
-    .sort((a, b) => (a.priority || 0) - (b.priority || 0))
+    .sort((a, b) => {
+      const pa = a.priority || 0;
+      const pb = b.priority || 0;
+      if (pa !== pb) return pa - pb;
+      // 동순위면 방금 수정된 항목을 앞으로
+      if (pinnedId) {
+        if (a.id === pinnedId) return -1;
+        if (b.id === pinnedId) return 1;
+      }
+      return 0;
+    })
     .forEach((item, idx) => {
       if (item.priority !== idx + 1) {
         priorityMap.push({ id: item.id, priority: idx + 1 });
@@ -371,7 +381,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   safeUpdate.updatedAt = new Date().toISOString();
 
   await updateBannerItem(type, id, safeUpdate);
-  await recalcPriorities(type);
+ await recalcPriorities(type, id);
 
   const updatedList = await loadBannerData(type);
   const updatedItem = updatedList.find(i => i.id === id);
@@ -1440,7 +1450,6 @@ Object.keys(BANNER_TYPES).forEach((type) => {
         console.log("관리자 DM 실패:", e.message);
       }
     }
-
     publishBannerMain(body.user.id, type).catch(e => console.log("publishBannerMain 실패:", e.message));
   });
 });
