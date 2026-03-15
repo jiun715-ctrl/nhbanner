@@ -72,6 +72,12 @@ function getCurrentMonthYYYYMM() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function getEventCode(type, priority) {
+  const prefix = { home: "NHHB", floating: "NHFB", interest: "NHIB" }[type];
+  if (!prefix || priority == null) return "—";
+  return `${prefix}${priority}`;
+}
+
 function safeString(v) {
   return typeof v === "string" ? v : v == null ? "" : String(v);
 }
@@ -137,7 +143,7 @@ export default function AdminPage() {
 
   const tableHeaders = useMemo(() => {
     const base = [
-      "수정","우선순위","No","담당자","배너구분","매체유형","배너명","배너내용",
+      "수정","우선순위","No","이벤트코드","담당자","배너구분","매체유형","배너명","배너내용",
       "상품구분","목적",
     ];
     if (isInterest) {
@@ -210,6 +216,7 @@ export default function AdminPage() {
       const row = {
         No: item.no,
         우선순위: item.priority ?? "—",
+        이벤트코드: getEventCode(activeType, item.priority),
         담당자: item.createdByName || "—",
         배너구분: getLabel(BANNER_TYPE_OPTIONS, item.bannerType),
         매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
@@ -239,6 +246,7 @@ export default function AdminPage() {
       const row = {
         No: item.no,
         우선순위: item.priority ?? "—",
+        이벤트코드: getEventCode(activeType, item.priority),
         담당자: item.createdByName || "—",
         배너구분: getLabel(BANNER_TYPE_OPTIONS, item.bannerType),
         매체유형: getLabel(MEDIA_TYPE_OPTIONS, item.mediaType),
@@ -360,7 +368,7 @@ export default function AdminPage() {
                   {tableHeaders.map((h, i) => (
                     <th key={i} style={{
                       padding: "11px 12px",
-                      textAlign: [0,1,2,deleteColIdx].includes(i) ? "center" : "left",
+                      textAlign: [0,1,2,3,deleteColIdx].includes(i) ? "center" : "left",
                       fontSize: 11, fontWeight: 700,
                       color: i === deleteColIdx ? "#dc2626" : "#64748b",
                     }}>{h}</th>
@@ -388,7 +396,10 @@ export default function AdminPage() {
                     </td>
                     <td style={{ padding: "10px 12px", textAlign: "center" }}><PriorityBadge value={item.priority} /></td>
                     <td style={{ padding: "10px 12px", textAlign: "center", color: "#94a3b8", fontWeight: 600 }}>{item.no}</td>
-                    <td style={{ ...tdS, fontWeight: 500, color: "#334155" }}>{item.createdByName || "—"}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "center", fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#0f766e", letterSpacing: "0.05em" }}>
+                      {getEventCode(activeType, item.priority)}
+</td>
+<td style={{ ...tdS, fontWeight: 500, color: "#334155" }}>{item.createdByName || "—"}</td>
                     <td style={tdS}>{getLabel(BANNER_TYPE_OPTIONS, item.bannerType)}</td>
                     <td style={tdS}>{getLabel(MEDIA_TYPE_OPTIONS, item.mediaType)}</td>
                     <td style={{ ...tdS, fontWeight: 600, color: "#1e293b" }}>{item.banner || "—"}</td>
