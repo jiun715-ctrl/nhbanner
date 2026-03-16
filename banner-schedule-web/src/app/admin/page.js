@@ -560,7 +560,22 @@ export default function AdminPage() {
               </Field>
 
               <Field label="우선순위">
-                <input type="number" min={1} style={{ ...inp, width: 100 }} value={editForm.priority} onChange={(e) => setEditForm({ ...editForm, priority: Number(e.target.value) })} />
+                <input
+  type="number"
+  min={1}
+  style={{ ...inp, width: 100 }}
+  value={editForm.priority}
+  onChange={(e) => setEditForm({ ...editForm, priority: Number(e.target.value) })}
+  onKeyDown={(e) => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setEditForm((f) => ({ ...f, priority: Math.max(1, (f.priority || 1) - 1) }));
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setEditForm((f) => ({ ...f, priority: (f.priority || 1) + 1 }));
+    }
+  }}
+/>
               </Field>
             </div>
 
