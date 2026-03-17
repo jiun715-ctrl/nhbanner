@@ -637,7 +637,7 @@ async function publishHome(userId) {
               "*1. 배너 안내*\n" +
               "  • *[홈상단 배너]* 홈 화면 상단에 노출 | 최대 5개 (✕ 버튼 클릭 시 변경)\n" +
               "  • *[플로팅 배너]* 화면 하단 팝업 형식 노출 | 최대 5개 (슬라이드 할 경우 변경)\n" +
-              "  • *[관심그룹 배너]* 관심그룹 내 탭별 종목 리스트 중간 노출 | 탭별 1개만 노출",
+              "  • *[관심그룹 배너]* 관심그룹 각 탭 내 종목리스트 중간에 노출 | 탭별 1개만 노출",
           },
         },
         { type: "divider" },
@@ -673,7 +673,7 @@ async function publishHome(userId) {
             text:
               "*4. 우선순위 제도*\n" +
               "  • 배너 등록 신청 시각에 따라 1순위~5순위 및 대기번호 실시간 배정\n" +
-              "  • ⚠️ (주의) 기 등록 후 날짜 수정 시, 변경일에 신청자가 이미 있는 경우 후순위로 자동 배정",
+              "  • ⚠️ (주의) 기 등록 후 날짜 수정 시, 변경 시각 기준 우선순위 반영(후순위)",
           },
         },
         { type: "divider" },
@@ -963,36 +963,50 @@ function buildModalBlocks(type, item) {
 
   // ── 배너명 (interest 제외) ──
   if (!isInterest) {
-    blocks.push({
-      type: "input",
-      block_id: "banner_block",
-      label: { type: "plain_text", text: "배너명(볼드체로 표시되는 최상단 문장. 최대 12자)" },
-      hint: { type: "plain_text", text: "두 줄로 희망 시 줄바꿈 심볼 '\\n' 을 넣어주세요. 최대 9자\nex) 트래블월렛 '여행자금 모으기' \\n서비스 소개'" },
-      element: {
-        type: "plain_text_input",
-        action_id: "banner",
-        multiline: true,
-        ...(isEdit ? { initial_value: item.banner || "" } : {}),
-        placeholder: { type: "plain_text", text: "배너명을 입력하세요" },
-      },
-    });
-  }
+  const bannerLabel = type === "home"
+    ? "배너명(볼드체로 표시되는 최상단 문장. 10~16자)"
+    : "배너명(윗줄 10~12자, 아랫줄 5~9자, 줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
+  const bannerHint = type === "home"
+    ? "ex) 이제 퇴직연금도 ELS!"
+    : "ex) 미션 달성하고 달러받자\\n미국주식챌린지";
 
-  // ── 배너내용 (interest 제외) ──
-  if (!isInterest) {
-    blocks.push({
-      type: "input",
-      block_id: "banner_desc_block",
-      label: { type: "plain_text", text: "배너내용(배너명 밑에 표시되는 문장. 줄당 최대 16자)" },
-      hint: { type: "plain_text", text: "ex) 이제 환전 걱정할 필요 없어요\\n나무 환전 이용해보세요." },
-      element: {
-        type: "plain_text_input",
-        action_id: "banner_desc",
-        ...(isEdit ? { initial_value: item.bannerDesc || "" } : {}),
-        placeholder: { type: "plain_text", text: "배너내용을 입력하세요" },
-      },
-    });
-  }
+  blocks.push({
+    type: "input",
+    block_id: "banner_block",
+    label: { type: "plain_text", text: bannerLabel },
+    hint: { type: "plain_text", text: bannerHint },
+    element: {
+      type: "plain_text_input",
+      action_id: "banner",
+      multiline: type === "floating",
+      ...(isEdit ? { initial_value: item.banner || "" } : {}),
+      placeholder: { type: "plain_text", text: "배너명을 입력하세요" },
+    },
+  });
+}
+
+// ── 배너내용 (interest 제외) ──
+if (!isInterest) {
+  const descLabel = type === "home"
+    ? "서브타이틀(두번째 줄에 표기되는 문장. 8~19자)"
+    : "배너내용(7~12글자, 줄바꿈 불가)";
+  const descHint = type === "home"
+    ? "ex) ELS 가입하고 이벤트 혜택까지"
+    : "ex) 24시간 챌린지 참여하기";
+
+  blocks.push({
+    type: "input",
+    block_id: "banner_desc_block",
+    label: { type: "plain_text", text: descLabel },
+    hint: { type: "plain_text", text: descHint },
+    element: {
+      type: "plain_text_input",
+      action_id: "banner_desc",
+      ...(isEdit ? { initial_value: item.bannerDesc || "" } : {}),
+      placeholder: { type: "plain_text", text: "배너내용을 입력하세요" },
+    },
+  });
+}
 
   // ── 상품구분 ──
   const ptElement = {
@@ -1185,6 +1199,40 @@ function buildModalBlocks(type, item) {
   });
 
   return blocks;
+}
+
+function validateBannerText(type, banner, bannerDesc) {
+  const errs = {};
+  if (type === "home") {
+    const len = banner.length;
+    if (len < 10)      errs.banner_block = `최소 글자수에 ${10 - len}글자 부족합니다`;
+    else if (len > 16) errs.banner_block = `글자수 제한을 ${len - 16}글자 초과하였습니다`;
+
+    const dLen = bannerDesc.length;
+    if (dLen < 8)      errs.banner_desc_block = `최소 글자수에 ${8 - dLen}글자 부족합니다`;
+    else if (dLen > 19) errs.banner_desc_block = `글자수 제한을 ${dLen - 19}글자 초과하였습니다`;
+  }
+  if (type === "floating") {
+    // 윗줄/아랫줄 분리 (사용자가 입력하는 리터럴 \n 기준)
+    const lines = banner.split("\\n");
+    const line1 = lines[0] || "";
+    const line2 = lines[1] ?? null;
+
+    const msgs = [];
+    if (line1.length < 10)      msgs.push(`윗줄 최소 글자수에 ${10 - line1.length}글자 부족합니다`);
+    else if (line1.length > 12) msgs.push(`윗줄 글자수 제한을 ${line1.length - 12}글자 초과하였습니다`);
+
+    if (line2 !== null) {
+      if (line2.length < 5)      msgs.push(`아랫줄 최소 글자수에 ${5 - line2.length}글자 부족합니다`);
+      else if (line2.length > 9) msgs.push(`아랫줄 글자수 제한을 ${line2.length - 9}글자 초과하였습니다`);
+    }
+    if (msgs.length > 0) errs.banner_block = msgs.join(" / ");
+
+    const dLen = bannerDesc.length;
+    if (dLen < 7)      errs.banner_desc_block = `최소 글자수에 ${7 - dLen}글자 부족합니다`;
+    else if (dLen > 12) errs.banner_desc_block = `글자수 제한을 ${dLen - 12}글자 초과하였습니다`;
+  }
+  return errs;
 }
 
 /* ======================================================
@@ -1381,12 +1429,19 @@ Object.keys(BANNER_TYPES).forEach((type) => {
         errors.end_date_block = `노출 기간은 시작일 포함 최대 ${maxDays}일까지 가능합니다. (현재 ${diffDays}일)`;
       }
     }
-    if (Object.keys(errors).length > 0) {
-      await ack({ response_action: "errors", errors });
-      return;
-    }
+    if (!isInterest) {
+  const bannerVal = v.banner_block?.banner?.value || "";
+  const bannerDescVal = v.banner_desc_block?.banner_desc?.value || "";
+  const textErrors = validateBannerText(type, bannerVal, bannerDescVal);
+  Object.assign(errors, textErrors);
+}
 
-    await ack();
+if (Object.keys(errors).length > 0) {
+  await ack({ response_action: "errors", errors });
+  return;
+}
+
+await ack();
 
     const mediaType = v.media_type_block.media_type.selected_option?.value || "";
     const isN2 = mediaType === "n2";
@@ -1481,12 +1536,19 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
       errors.end_date_block = `노출 기간은 시작일 포함 최대 ${maxDays}일까지 가능합니다. (현재 ${diffDays}일)`;
     }
   }
-  if (Object.keys(errors).length > 0) {
-    await ack({ response_action: "errors", errors });
-    return;
-  }
+  if (!isInterest) {
+  const bannerVal = v.banner_block?.banner?.value || "";
+  const bannerDescVal = v.banner_desc_block?.banner_desc?.value || "";
+  const textErrors = validateBannerText(type, bannerVal, bannerDescVal);
+  Object.assign(errors, textErrors);
+}
 
-  await ack();
+if (Object.keys(errors).length > 0) {
+  await ack({ response_action: "errors", errors });
+  return;
+}
+
+await ack();
 
   const mediaType = v.media_type_block.media_type.selected_option?.value || "";
   const isN2 = mediaType === "n2";
