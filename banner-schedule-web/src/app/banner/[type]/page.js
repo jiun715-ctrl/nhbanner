@@ -308,7 +308,7 @@ export default function BannerPage() {
                         }`}>
                           {rankLabel}
                         </span>
-                        {!isInterest && getDisplayName(item)}
+                        {isInterest ? (item.createdByName || "—") : getDisplayName(item)}
                         {item.mediaType && item.mediaType !== "n2" && (
                           <span className="ml-1 text-[11px] font-normal opacity-60">
                             ({item.mediaType === "tree" ? "나무" : "공통"})
