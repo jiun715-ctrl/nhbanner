@@ -82,7 +82,7 @@ export default function BannerPage() {
   const apiBase = "https://nhbanner-slack.onrender.com";
 
   useEffect(() => {
-    fetch(`${apiBase}/api/banner/${type}`, { cache: "no-store" })
+    fetch(`${apiBase}/api/banner/${type}?withUserName=true`, { cache: "no-store" })
       .then((res) => res.json())
       .then(setBanners)
       .catch(console.error);

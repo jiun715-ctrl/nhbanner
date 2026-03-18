@@ -102,7 +102,10 @@ const MAX_EXPOSURE_DAYS = {
 };
 
 /* 🔥 관리자 Slack User ID (등록 알림 수신) */
-const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "";
+const ADMIN_USER_IDS = (process.env.ADMIN_USER_ID || "")
+  .split(",")
+  .map(id => id.trim())
+  .filter(Boolean);
 
 /* 🔥 바로가기속성 옵션 (non-interest) */
 const LINK_TYPE_OPTIONS = [
@@ -702,6 +705,15 @@ async function publishBannerMain(userId, type) {
   const calendarData = allData.filter(item => item.mediaType !== "n2");
 
   const isInterest = type === "interest";
+  const creatorNames = {};
+if (isInterest) {
+  for (const item of calendarData) {
+    if (item.createdBy && !creatorNames[item.createdBy]) {
+      creatorNames[item.createdBy] = await getSlackUserName(item.createdBy);
+    }
+  }
+}
+
   const dates = getThisWeekDates();
 
   const blocks = [
@@ -755,9 +767,10 @@ async function publishBannerMain(userId, type) {
 
     if (isInterest) {
       const allLines = INTEREST_TAB_OPTIONS.map((tab) => {
-        const found = dayItems.find(item => item.desiredTab === tab.value);
-        return { label: tab.label, value: found ? "등록됨" : "—" };
-      });
+      const found = dayItems.find(item => item.desiredTab === tab.value);
+      const name = found ? (creatorNames[found.createdBy] || "—") : "—";
+      return { label: tab.label, value: found ? name : "—" };
+    });
       const maxLen = Math.max(...allLines.map(l => getDisplayWidth(l.label)));
       const formatted = allLines.map(l => {
         const pad = " ".repeat(maxLen - getDisplayWidth(l.label) + 2);
@@ -1152,41 +1165,53 @@ if (!isInterest) {
     element: ltElement,
   });
 
-  // ── 바로가기링크 ──
+// ── 바로가기링크 ──
+blocks.push({
+  type: "input",
+  block_id: "link_data_block",
+  optional: true,
+  label: { type: "plain_text", text: "바로가기링크" },
+  element: {
+    type: "plain_text_input",
+    action_id: "link_data",
+    ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
+    placeholder: { type: "plain_text", text: isInterest
+      ? "링크를 입력하세요"
+      : "하단 설명을 참고해서 입력해주세요." },
+  },
+});
+blocks.push({
+  type: "context",
+  elements: [{
+    type: "mrkdwn",
+    text: isInterest
+      ? "• 화면[배너형]: 화면번호 입력 (ex: X08m5132)\n• URL[배너형]: 외부 URL 입력"
+      : "• 화면오픈(MTS화면): 화면번호 입력 (ex: X08m5132)\n• 팝업오픈(이벤트): X12m921g 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): X12m921a 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): X08m5132 자동입력됨 — 비워두세요\n• URL(외부페이지): 외부 URL 입력",
+  }],
+});
+
+// ── 랜딩페이지 (interest 제외) ──
+if (!isInterest) {
   blocks.push({
     type: "input",
-    block_id: "link_data_block",
+    block_id: "landing_page_block",
     optional: true,
-    label: { type: "plain_text", text: "바로가기링크" },
-    hint: { type: "plain_text", text: isInterest
-      ? "•화면[배너형]: 화면번호 입력 (ex: X08m5132)\nURL[배너형]: 외부 URL 입력"
-      : "• 화면오픈(MTS화면): 화면번호 입력 (ex: X08m5132)\n• 팝업오픈(이벤트): X12m921g 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): X12m921a 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): X08m5132 자동입력됨 — 비워두세요\n• URL(외부페이지): 외부 URL 입력" },
+    label: { type: "plain_text", text: "랜딩페이지" },
     element: {
       type: "plain_text_input",
-      action_id: "link_data",
-      ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
-      placeholder: { type: "plain_text", text: isInterest
-        ? "링크를 입력하세요"
-        : "하단 설명을 참고해서 입력해주세요." },
+      action_id: "landing_page",
+      ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
+      placeholder: { type: "plain_text", text: "하단 설명을 참고해서 입력해주세요." },
     },
   });
-
-  // ── 랜딩페이지 (interest 제외) ──
-  if (!isInterest) {
-    blocks.push({
-      type: "input",
-      block_id: "landing_page_block",
-      optional: true,
-      label: { type: "plain_text", text: "랜딩페이지" },
-      hint: { type: "plain_text", text: "• 팝업오픈(이벤트): E^000 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): N^0000 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): 모바일URL 입력 (선택)\n  ex) https://m.mynamuh.com/customer/event/eventView?mNo=482\n• 그 외: 입력불요 (자동 공란)\n• 랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n  그 외 문의는 담당자(김수연 주임)에게 문의해주세요" },
-      element: {
-        type: "plain_text_input",
-        action_id: "landing_page",
-        ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
-        placeholder: { type: "plain_text", text: "하단 설명을 참고해서 입력해주세요." },
-      },
-    });
-  }
+  blocks.push({
+    type: "context",
+    elements: [{
+      type: "mrkdwn",
+      text: "• 팝업오픈(이벤트): E^000 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): N^0000 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): 모바일URL 입력 (랜딩페이지)\n• 그 외: 입력불요 (자동 공란)\n• 랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n  그 외 문의는 담당자(김수연 주임)에게 문의해주세요",
+    }],
+  });
+}
 
   // ── 배너이미지파일 (공지 텍스트만, 입력창 없음) ──
   blocks.push({
@@ -1486,21 +1511,21 @@ await ack();
 
     await addBannerItem(type, newItem);
 
-    if (ADMIN_USER_ID) {
+    if (ADMIN_USER_IDS.length > 0) {
       try {
         const displayName = isInterest
           ? getDesiredTabLabel(newItem.desiredTab)
           : newItem.banner || "—";
         const userName = await getSlackUserName(body.user.id);
-        await app.client.chat.postMessage({
-          channel: ADMIN_USER_ID,
-          text:
-            `📬 새 배너가 등록되었습니다.\n\n` +
-            `• 유형: ${BANNER_TYPES[type]}\n` +
-            `• 배너: ${displayName}\n` +
-            `• 기간: ${newItem.startDate} ~ ${newItem.endDate}\n` +
-            `• 등록자: ${userName}`,
-        });
+        const adminText =
+          `📬 새 배너가 등록되었습니다.\n\n` +
+          `• 유형: ${BANNER_TYPES[type]}\n` +
+          `• 배너: ${displayName}\n` +
+          `• 기간: ${newItem.startDate} ~ ${newItem.endDate}\n` +
+          `• 등록자: ${userName}`;
+        for (const adminId of ADMIN_USER_IDS) {
+          await app.client.chat.postMessage({ channel: adminId, text: adminText });
+        }
       } catch (e) {
         console.log("관리자 DM 실패:", e.message);
       }
@@ -1638,12 +1663,16 @@ async function checkReminders() {
             || getDesiredTabLabel(item.desiredTab)
             || "배너";
           try {
-            await app.client.chat.postMessage({
-              channel: item.createdBy,
-              text:
-                `📢 *"${displayName}"* 노출 시작 4일 전입니다.\n` +
-                `담당자(김수연 주임)에게 이미지 파일(png)을 전달해주세요.`,
-            });
+            const reminderText = `📢 *"${displayName}"* 노출 시작 4일 전입니다.\n담당자(김수연 주임)에게 이미지 파일(png)을 전달해주세요.`;
+
+            await app.client.chat.postMessage({ channel: item.createdBy, text: reminderText });
+
+            // 관리자에게도 동일 발송 (등록자와 다른 경우만)
+            for (const adminId of ADMIN_USER_IDS) {
+              if (adminId !== item.createdBy) {
+                await app.client.chat.postMessage({ channel: adminId, text: reminderText });
+              }
+            }
             console.log(`✅ 리마인더 발송: ${displayName} → ${item.createdBy}`);
           } catch (e) {
             console.log(`❌ 리마인더 DM 실패 (${item.createdBy}):`, e.message);
