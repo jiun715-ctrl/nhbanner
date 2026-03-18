@@ -287,8 +287,9 @@ export default function BannerPage() {
                   const isWaiting = isInterest ? false : index >= 5;
                   let rankLabel;
                   if (isInterest) {
-                    const tabOpt = INTEREST_TAB_OPTIONS.find(o => o.value === item.desiredTab);
-                    rankLabel = tabOpt ? tabOpt.label : `슬롯${index + 1}`;
+                  const tabOpt = INTEREST_TAB_OPTIONS.find(o => o.value === item.desiredTab);
+                  const tabLabel = tabOpt ? tabOpt.label : `슬롯${index + 1}`;
+                  rankLabel = `${tabLabel}: ${item.createdByName || "—"}`;
                   } else {
                     rankLabel = isWaiting
                       ? `대기 ${index - 4}`
@@ -308,7 +309,7 @@ export default function BannerPage() {
                         }`}>
                           {rankLabel}
                         </span>
-                        {getDisplayName(item)}
+                        {!isInterest && getDisplayName(item)}
                         {item.mediaType && item.mediaType !== "n2" && (
                           <span className="ml-1 text-[11px] font-normal opacity-60">
                             ({item.mediaType === "tree" ? "나무" : "공통"})
