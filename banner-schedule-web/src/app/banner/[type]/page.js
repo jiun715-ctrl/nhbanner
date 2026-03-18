@@ -287,9 +287,8 @@ export default function BannerPage() {
                   const isWaiting = isInterest ? false : index >= 5;
                   let rankLabel;
                   if (isInterest) {
-                  const tabOpt = INTEREST_TAB_OPTIONS.find(o => o.value === item.desiredTab);
-                  const tabLabel = tabOpt ? tabOpt.label : `슬롯${index + 1}`;
-                  rankLabel = `${tabLabel}: ${item.createdByName || "—"}`;
+                    const tabOpt = INTEREST_TAB_OPTIONS.find(o => o.value === item.desiredTab);
+                    rankLabel = tabOpt ? tabOpt.label : `슬롯${index + 1}`;
                   } else {
                     rankLabel = isWaiting
                       ? `대기 ${index - 4}`
