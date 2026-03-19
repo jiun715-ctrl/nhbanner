@@ -977,8 +977,8 @@ function buildModalBlocks(type, item) {
   // ── 배너명 (interest 제외) ──
   if (!isInterest) {
   const bannerLabel = type === "home"
-    ? "배너명(볼드체로 표시되는 최상단 문장. 10~16자)"
-    : "배너명(윗줄 10~12자, 아랫줄 5~9자, 줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
+    ? "배너명 (볼드체로 표시되는 최상단 문장. 10~16자)"
+    : "배너명 (윗줄 10~12자, 아랫줄 5~9자, 줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
   const bannerHint = type === "home"
     ? "ex) 이제 퇴직연금도 ELS!"
     : "ex) 미션 달성하고 달러받자\\n미국주식챌린지";
@@ -1001,8 +1001,8 @@ function buildModalBlocks(type, item) {
 // ── 배너내용 (interest 제외) ──
 if (!isInterest) {
   const descLabel = type === "home"
-    ? "서브타이틀(두번째 줄에 표기되는 문장. 8~19자)"
-    : "배너내용(7~12글자, 줄바꿈 불가)";
+    ? "서브타이틀 (두번째 줄에 표기되는 문장. 8~19자)"
+    : "배너내용 (7~12글자, 줄바꿈 불가)";
   const descHint = type === "home"
     ? "ex) ELS 가입하고 이벤트 혜택까지"
     : "ex) 24시간 챌린지 참여하기";
