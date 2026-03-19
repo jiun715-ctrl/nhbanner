@@ -268,12 +268,6 @@ receiver.router.use(cors({
   ],
 }));
 
-receiver.router.post("/slack/events", (req, res) => {
-  if (req.body.type === "url_verification") {
-    return res.json({ challenge: req.body.challenge });
-  }
-  res.sendStatus(200);
-});
 
 /* ======================================================
  * 엑셀 메일 전송 API
