@@ -560,22 +560,44 @@ export default function AdminPage() {
               </Field>
 
               <Field label="우선순위">
-                <input
-  type="number"
-  min={1}
-  style={{ ...inp, width: 100 }}
-  value={editForm.priority}
-  onChange={(e) => setEditForm({ ...editForm, priority: Number(e.target.value) })}
-  onKeyDown={(e) => {
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setEditForm((f) => ({ ...f, priority: Math.max(1, (f.priority || 1) - 1) }));
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setEditForm((f) => ({ ...f, priority: (f.priority || 1) + 1 }));
-    }
-  }}
-/>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditForm((f) => ({ ...f, priority: Math.max(1, (f.priority || 1) - 1) }))}
+                    style={{
+                      width: 36, height: 36, border: "1px solid #e2e8f0", borderRadius: 6,
+                      background: "#f8fafc", cursor: "pointer", fontSize: 16, fontWeight: 700,
+                      display: "flex", alignItems: "center", justifyContent: "center", color: "#16a34a",
+                    }}
+                    title="우선순위 올리기 (숫자 감소)"
+                  >▲</button>
+                  <input
+                    type="number"
+                    min={1}
+                    style={{ ...inp, width: 70, textAlign: "center" }}
+                    value={editForm.priority}
+                    onChange={(e) => setEditForm({ ...editForm, priority: Number(e.target.value) })}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        setEditForm((f) => ({ ...f, priority: Math.max(1, (f.priority || 1) - 1) }));
+                      } else if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        setEditForm((f) => ({ ...f, priority: (f.priority || 1) + 1 }));
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setEditForm((f) => ({ ...f, priority: (f.priority || 1) + 1 }))}
+                    style={{
+                      width: 36, height: 36, border: "1px solid #e2e8f0", borderRadius: 6,
+                      background: "#f8fafc", cursor: "pointer", fontSize: 16, fontWeight: 700,
+                      display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626",
+                    }}
+                    title="우선순위 내리기 (숫자 증가)"
+                  >▼</button>
+                </div>
               </Field>
             </div>
 
