@@ -232,7 +232,6 @@ async function recalcPriorities(type, pinnedId = null) {
       const pa = a.priority || 0;
       const pb = b.priority || 0;
       if (pa !== pb) return pa - pb;
-      // 동순위면 방금 수정된 항목을 앞으로
       if (pinnedId) {
         if (a.id === pinnedId) return -1;
         if (b.id === pinnedId) return 1;
@@ -378,7 +377,7 @@ receiver.router.post("/api/admin/update/:type/:id", async (req, res) => {
   safeUpdate.updatedAt = new Date().toISOString();
 
   await updateBannerItem(type, id, safeUpdate);
- await recalcPriorities(type, id);
+  await recalcPriorities(type, id);
 
   const updatedList = await loadBannerData(type);
   const updatedItem = updatedList.find(i => i.id === id);
@@ -537,12 +536,12 @@ async function getSlackUserName(userId) {
 }
 
 /* ======================================================
- * 날짜 유틸
+ * 날짜 유틸 (🔥 KST 기준으로 수정)
  * ====================================================== */
 
 function formatMMDD(date) {
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(date.getUTCDate()).padStart(2, "0");
   return `${mm}/${dd}`;
 }
 
@@ -566,14 +565,19 @@ function getTodayKST() {
 }
 
 function getThisWeekDates() {
-  const today = new Date();
-  const day = today.getDay();
-  const diffToMonday = (day === 0 ? -6 : 1) - day;
-  const monday = new Date(today);
-  monday.setDate(today.getDate() + diffToMonday);
+  // KST(UTC+9) 기준으로 오늘 날짜 계산
+  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const kstYear = kstNow.getUTCFullYear();
+  const kstMonth = kstNow.getUTCMonth();
+  const kstDate = kstNow.getUTCDate();
+  const kstDay = kstNow.getUTCDay();
+
+  const diffToMonday = (kstDay === 0 ? -6 : 1) - kstDay;
+  const monday = new Date(Date.UTC(kstYear, kstMonth, kstDate + diffToMonday));
+
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
+    d.setUTCDate(monday.getUTCDate() + i);
     return d;
   });
 }
@@ -700,13 +704,13 @@ async function publishBannerMain(userId, type) {
 
   const isInterest = type === "interest";
   const creatorNames = {};
-if (isInterest) {
-  for (const item of calendarData) {
-    if (item.createdBy && !creatorNames[item.createdBy]) {
-      creatorNames[item.createdBy] = await getSlackUserName(item.createdBy);
+  if (isInterest) {
+    for (const item of calendarData) {
+      if (item.createdBy && !creatorNames[item.createdBy]) {
+        creatorNames[item.createdBy] = await getSlackUserName(item.createdBy);
+      }
     }
   }
-}
 
   const dates = getThisWeekDates();
 
@@ -748,9 +752,10 @@ if (isInterest) {
   });
 
   dates.forEach((date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, "0");
-    const d = String(date.getDate()).padStart(2, "0");
+    // 🔥 KST 기준 UTC 메서드 사용
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(date.getUTCDate()).padStart(2, "0");
     const yyyyMMdd = `${y}-${m}-${d}`;
 
     const dayItems = calendarData.filter(
@@ -761,10 +766,10 @@ if (isInterest) {
 
     if (isInterest) {
       const allLines = INTEREST_TAB_OPTIONS.map((tab) => {
-      const found = dayItems.find(item => item.desiredTab === tab.value);
-      const name = found ? (creatorNames[found.createdBy] || "—") : "—";
-      return { label: tab.label, value: found ? name : "—" };
-    });
+        const found = dayItems.find(item => item.desiredTab === tab.value);
+        const name = found ? (creatorNames[found.createdBy] || "—") : "—";
+        return { label: tab.label, value: found ? name : "—" };
+      });
       const maxLen = Math.max(...allLines.map(l => getDisplayWidth(l.label)));
       const formatted = allLines.map(l => {
         const pad = " ".repeat(maxLen - getDisplayWidth(l.label) + 2);
@@ -970,50 +975,50 @@ function buildModalBlocks(type, item) {
 
   // ── 배너명 (interest 제외) ──
   if (!isInterest) {
-  const bannerLabel = type === "home"
-    ? "배너명 (볼드체로 표시되는 최상단 문장. 10~16자)"
-    : "배너명 (윗줄 10~12자, 아랫줄 5~9자, 줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
-  const bannerHint = type === "home"
-    ? "ex) 이제 퇴직연금도 ELS!"
-    : "ex) 미션 달성하고 달러받자\\n미국주식챌린지";
+    const bannerLabel = type === "home"
+      ? "배너명 (볼드체로 표시되는 최상단 문장. 10~16자)"
+      : "배너명 (윗줄 10~12자, 아랫줄 5~9자, 줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
+    const bannerHint = type === "home"
+      ? "ex) 이제 퇴직연금도 ELS!"
+      : "ex) 미션 달성하고 달러받자\\n미국주식챌린지";
 
-  blocks.push({
-    type: "input",
-    block_id: "banner_block",
-    label: { type: "plain_text", text: bannerLabel },
-    hint: { type: "plain_text", text: bannerHint },
-    element: {
-      type: "plain_text_input",
-      action_id: "banner",
-      multiline: type === "floating",
-      ...(isEdit ? { initial_value: item.banner || "" } : {}),
-      placeholder: { type: "plain_text", text: "배너명을 입력하세요" },
-    },
-  });
-}
+    blocks.push({
+      type: "input",
+      block_id: "banner_block",
+      label: { type: "plain_text", text: bannerLabel },
+      hint: { type: "plain_text", text: bannerHint },
+      element: {
+        type: "plain_text_input",
+        action_id: "banner",
+        multiline: type === "floating",
+        ...(isEdit ? { initial_value: item.banner || "" } : {}),
+        placeholder: { type: "plain_text", text: "배너명을 입력하세요" },
+      },
+    });
+  }
 
-// ── 배너내용 (interest 제외) ──
-if (!isInterest) {
-  const descLabel = type === "home"
-    ? "서브타이틀 (두번째 줄에 표기되는 문장. 8~19자)"
-    : "배너내용 (7~12글자, 줄바꿈 불가)";
-  const descHint = type === "home"
-    ? "ex) ELS 가입하고 이벤트 혜택까지"
-    : "ex) 24시간 챌린지 참여하기";
+  // ── 배너내용 (interest 제외) ──
+  if (!isInterest) {
+    const descLabel = type === "home"
+      ? "서브타이틀 (두번째 줄에 표기되는 문장. 8~19자)"
+      : "배너내용 (7~12글자, 줄바꿈 불가)";
+    const descHint = type === "home"
+      ? "ex) ELS 가입하고 이벤트 혜택까지"
+      : "ex) 24시간 챌린지 참여하기";
 
-  blocks.push({
-    type: "input",
-    block_id: "banner_desc_block",
-    label: { type: "plain_text", text: descLabel },
-    hint: { type: "plain_text", text: descHint },
-    element: {
-      type: "plain_text_input",
-      action_id: "banner_desc",
-      ...(isEdit ? { initial_value: item.bannerDesc || "" } : {}),
-      placeholder: { type: "plain_text", text: "배너내용을 입력하세요" },
-    },
-  });
-}
+    blocks.push({
+      type: "input",
+      block_id: "banner_desc_block",
+      label: { type: "plain_text", text: descLabel },
+      hint: { type: "plain_text", text: descHint },
+      element: {
+        type: "plain_text_input",
+        action_id: "banner_desc",
+        ...(isEdit ? { initial_value: item.bannerDesc || "" } : {}),
+        placeholder: { type: "plain_text", text: "배너내용을 입력하세요" },
+      },
+    });
+  }
 
   // ── 상품구분 ──
   const ptElement = {
@@ -1159,53 +1164,53 @@ if (!isInterest) {
     element: ltElement,
   });
 
-// ── 바로가기링크 ──
-blocks.push({
-  type: "input",
-  block_id: "link_data_block",
-  optional: true,
-  label: { type: "plain_text", text: "바로가기링크" },
-  element: {
-    type: "plain_text_input",
-    action_id: "link_data",
-    ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
-    placeholder: { type: "plain_text", text: isInterest
-      ? "링크를 입력하세요"
-      : "하단 설명을 참고해서 입력해주세요." },
-  },
-});
-blocks.push({
-  type: "context",
-  elements: [{
-    type: "mrkdwn",
-    text: isInterest
-      ? "• 화면[배너형]: 화면번호 입력 (ex: X08m5132)\n• URL[배너형]: 외부 URL 입력"
-      : "• 화면오픈(MTS화면): 화면번호 입력 (ex: X08m5132)\n• 팝업오픈(이벤트): X12m921g 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): X12m921a 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): X08m5132 자동입력됨 — 비워두세요\n• URL(외부페이지): 외부 URL 입력",
-  }],
-});
-
-// ── 랜딩페이지 (interest 제외) ──
-if (!isInterest) {
+  // ── 바로가기링크 ──
   blocks.push({
     type: "input",
-    block_id: "landing_page_block",
+    block_id: "link_data_block",
     optional: true,
-    label: { type: "plain_text", text: "랜딩페이지" },
+    label: { type: "plain_text", text: "바로가기링크" },
     element: {
       type: "plain_text_input",
-      action_id: "landing_page",
-      ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
-      placeholder: { type: "plain_text", text: "하단 설명을 참고해서 입력해주세요." },
+      action_id: "link_data",
+      ...(isEdit && item.linkData ? { initial_value: item.linkData } : {}),
+      placeholder: { type: "plain_text", text: isInterest
+        ? "링크를 입력하세요"
+        : "하단 설명을 참고해서 입력해주세요." },
     },
   });
   blocks.push({
     type: "context",
     elements: [{
       type: "mrkdwn",
-      text: "• 팝업오픈(이벤트): E^000 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): N^0000 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): 모바일URL 입력 (랜딩페이지)\n• 그 외: 입력불요 (자동 공란)\n• 랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n  그 외 문의는 담당자(김수연 주임)에게 문의해주세요",
+      text: isInterest
+        ? "• 화면[배너형]: 화면번호 입력 (ex: X08m5132)\n• URL[배너형]: 외부 URL 입력"
+        : "• 화면오픈(MTS화면): 화면번호 입력 (ex: X08m5132)\n• 팝업오픈(이벤트): X12m921g 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): X12m921a 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): X08m5132 자동입력됨 — 비워두세요\n• URL(외부페이지): 외부 URL 입력",
     }],
   });
-}
+
+  // ── 랜딩페이지 (interest 제외) ──
+  if (!isInterest) {
+    blocks.push({
+      type: "input",
+      block_id: "landing_page_block",
+      optional: true,
+      label: { type: "plain_text", text: "랜딩페이지" },
+      element: {
+        type: "plain_text_input",
+        action_id: "landing_page",
+        ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
+        placeholder: { type: "plain_text", text: "하단 설명을 참고해서 입력해주세요." },
+      },
+    });
+    blocks.push({
+      type: "context",
+      elements: [{
+        type: "mrkdwn",
+        text: "• 팝업오픈(이벤트): E^000 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): N^0000 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): 모바일URL 입력 (랜딩페이지)\n• 그 외: 입력불요 (자동 공란)\n• 랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n  그 외 문의는 담당자(김수연 주임)에게 문의해주세요",
+      }],
+    });
+  }
 
   // ── 배너이미지파일 (공지 텍스트만, 입력창 없음) ──
   blocks.push({
@@ -1232,7 +1237,6 @@ function validateBannerText(type, banner, bannerDesc) {
     else if (dLen > 19) errs.banner_desc_block = `글자수 제한을 ${dLen - 19}글자 초과하였습니다`;
   }
   if (type === "floating") {
-    // 윗줄/아랫줄 분리 (사용자가 입력하는 리터럴 \n 기준)
     const lines = banner.split("\\n");
     const line1 = lines[0] || "";
     const line2 = lines[1] ?? null;
@@ -1264,17 +1268,12 @@ function applyLinkAutoFill(linkType, userLinkData, userLandingPage) {
 
   const autoFill = LINK_AUTO_FILL[linkType];
   if (autoFill) {
-    // 팝업오픈 계열: linkData 강제 덮어쓰기
     finalLinkData = autoFill.linkData;
-    // landingPage: 고정값이 있으면 덮어쓰기, 없으면(콘텐츠) 유저 입력 유지
     if (autoFill.landingPage) {
       finalLandingPage = autoFill.landingPage;
     }
   }
 
-  // 화면오픈, URL: 유저 입력 그대로
-  // screen_mts, url_external → finalLinkData = userLinkData (이미 설정됨)
-  // 이외 랜딩페이지가 불필요한 경우 빈값
   if (linkType === "screen_mts" || linkType === "url_external") {
     finalLandingPage = "";
   }
@@ -1449,26 +1448,24 @@ Object.keys(BANNER_TYPES).forEach((type) => {
       }
     }
     if (!isInterest) {
-  const bannerVal = v.banner_block?.banner?.value || "";
-  const bannerDescVal = v.banner_desc_block?.banner_desc?.value || "";
-  const textErrors = validateBannerText(type, bannerVal, bannerDescVal);
-  Object.assign(errors, textErrors);
-}
+      const bannerVal = v.banner_block?.banner?.value || "";
+      const bannerDescVal = v.banner_desc_block?.banner_desc?.value || "";
+      const textErrors = validateBannerText(type, bannerVal, bannerDescVal);
+      Object.assign(errors, textErrors);
+    }
 
-if (Object.keys(errors).length > 0) {
-  await ack({ response_action: "errors", errors });
-  return;
-}
+    if (Object.keys(errors).length > 0) {
+      await ack({ response_action: "errors", errors });
+      return;
+    }
 
-await ack();
+    await ack();
 
     const mediaType = v.media_type_block.media_type.selected_option?.value || "";
     const isN2 = mediaType === "n2";
     const linkType = v.link_type_block.link_type.selected_option?.value || "";
 
-    // 🔥 바로가기링크/랜딩페이지 자동입력 처리
     const userLinkData = v.link_data_block?.link_data?.value || "";
-    // interest는 랜딩페이지 블록이 없으므로 무조건 공란
     const userLandingPage = isInterest ? "" : (v.landing_page_block?.landing_page?.value || "");
     const { linkData, landingPage } = isInterest
       ? { linkData: userLinkData, landingPage: "" }
@@ -1556,26 +1553,24 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
     }
   }
   if (!isInterest) {
-  const bannerVal = v.banner_block?.banner?.value || "";
-  const bannerDescVal = v.banner_desc_block?.banner_desc?.value || "";
-  const textErrors = validateBannerText(type, bannerVal, bannerDescVal);
-  Object.assign(errors, textErrors);
-}
+    const bannerVal = v.banner_block?.banner?.value || "";
+    const bannerDescVal = v.banner_desc_block?.banner_desc?.value || "";
+    const textErrors = validateBannerText(type, bannerVal, bannerDescVal);
+    Object.assign(errors, textErrors);
+  }
 
-if (Object.keys(errors).length > 0) {
-  await ack({ response_action: "errors", errors });
-  return;
-}
+  if (Object.keys(errors).length > 0) {
+    await ack({ response_action: "errors", errors });
+    return;
+  }
 
-await ack();
+  await ack();
 
   const mediaType = v.media_type_block.media_type.selected_option?.value || "";
   const isN2 = mediaType === "n2";
   const linkType = v.link_type_block.link_type.selected_option?.value || "";
 
-  // 🔥 바로가기링크/랜딩페이지 자동입력
   const userLinkData = v.link_data_block?.link_data?.value || "";
-  // interest는 랜딩페이지 블록이 없으므로 무조건 공란
   const userLandingPage = isInterest ? "" : (v.landing_page_block?.landing_page?.value || "");
   const { linkData, landingPage } = isInterest
     ? { linkData: userLinkData, landingPage: "" }
@@ -1661,7 +1656,6 @@ async function checkReminders() {
 
             await app.client.chat.postMessage({ channel: item.createdBy, text: reminderText });
 
-            // 관리자에게도 동일 발송 (등록자와 다른 경우만)
             for (const adminId of ADMIN_USER_IDS) {
               if (adminId !== item.createdBy) {
                 await app.client.chat.postMessage({ channel: adminId, text: reminderText });
