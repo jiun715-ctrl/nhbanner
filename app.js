@@ -736,7 +736,7 @@ async function publishBannerMain(userId, type) {
         type: "button",
         text: { type: "plain_text", text: "📆 월간 배너 일정 보기" },
         action_id: "open_monthly_calendar",
-        url: `${BASE_URL}/banner/${type}`,
+        url: `${BASE_URL}/banner/${type}?t=${Date.now()}`,
       },
       {
         type: "button",
