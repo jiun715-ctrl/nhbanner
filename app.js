@@ -941,6 +941,23 @@ app.action("filter_my_interest", async ({ ack, body }) => {
 });
 
 /* ======================================================
+ * 모달 내 입력 요소 액션 (ack만 처리)
+ * ====================================================== */
+const modalActionIds = [
+  "media_type", "product_type", "purpose",
+  "desired_tab", "start_date", "end_date",
+  "link_type", "link_data", "landing_page",
+  "banner", "banner_desc",
+];
+
+modalActionIds.forEach(actionId => {
+  app.action(actionId, async ({ ack }) => {
+    await ack();
+  });
+});
+
+
+/* ======================================================
  * 🔥 등록/수정 모달 블록 빌더
  * ====================================================== */
 
