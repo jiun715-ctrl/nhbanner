@@ -735,6 +735,7 @@ async function publishBannerMain(userId, type) {
       {
         type: "button",
         text: { type: "plain_text", text: "📆 월간 배너 일정 보기" },
+        action_id: "open_monthly_calendar",
         url: `${BASE_URL}/banner/${type}`,
       },
       {
@@ -956,6 +957,10 @@ modalActionIds.forEach(actionId => {
   });
 });
 
+// 🔥 URL 버튼 클릭 ack 처리
+app.action("open_monthly_calendar", async ({ ack }) => {
+  await ack();
+});
 
 /* ======================================================
  * 🔥 등록/수정 모달 블록 빌더
