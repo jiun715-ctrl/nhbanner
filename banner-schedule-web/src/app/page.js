@@ -18,7 +18,7 @@ function getMonthMatrix(year, month) {
   const lastDay = new Date(year, month + 1, 0);
 
   const start = new Date(firstDay);
-  start.setDate(start.getDate() - start.getDay()); // 일요일 시작
+  start.setDate(start.getDate() - start.getDay());
 
   const end = new Date(lastDay);
   end.setDate(end.getDate() + (6 - end.getDay()));
@@ -54,13 +54,10 @@ const COLOR_CLASSES = [
  * =============================== */
 
 export default function Home() {
-  // 🔥 KST(UTC+9) 기준 오늘 날짜
-  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
-  const today = new Date(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate());
-  const todayStr = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, "0")}-${String(kstNow.getUTCDate()).padStart(2, "0")}`;
+  const now = new Date();
 
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth());
   const [banners, setBanners] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null);
 
@@ -151,7 +148,6 @@ export default function Home() {
           {days.map(date => {
             const dateStr = formatDate(date);
             const isCurrentMonth = date.getMonth() === month;
-            const isToday = dateStr === todayStr;
 
             const dayItems = banners
               .filter(b => b.startDate <= dateStr && b.endDate >= dateStr)
@@ -166,7 +162,6 @@ export default function Home() {
                 onClick={() => setSelectedDate(dateStr)}
                 className={`min-h-[140px] cursor-pointer border border-zinc-200 p-2 text-xs dark:border-zinc-800
                   ${isCurrentMonth ? "" : "bg-zinc-100 text-zinc-400 dark:bg-zinc-900"}
-                  ${isToday ? "ring-2 ring-blue-400" : ""}
                 `}
               >
                 <div className="mb-1 text-xs font-semibold">
@@ -226,7 +221,6 @@ export default function Home() {
                         {item.banner}
                       </div>
 
-
                       <div className="text-xs opacity-80">
                         {item.department} / {item.manager}
                       </div>
@@ -238,8 +232,6 @@ export default function Home() {
                   );
                 })}
               </ul>
-
-
             )}
           </div>
         )}
