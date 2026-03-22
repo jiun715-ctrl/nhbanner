@@ -54,8 +54,10 @@ const COLOR_CLASSES = [
  * =============================== */
 
 export default function Home() {
-  const today = new Date();
-  const todayStr = formatDate(today);
+  // 🔥 KST(UTC+9) 기준 오늘 날짜
+  const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  const today = new Date(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate());
+  const todayStr = `${kstNow.getUTCFullYear()}-${String(kstNow.getUTCMonth() + 1).padStart(2, "0")}-${String(kstNow.getUTCDate()).padStart(2, "0")}`;
 
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth());
