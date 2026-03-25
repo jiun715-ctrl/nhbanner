@@ -1211,28 +1211,27 @@ function buildModalBlocks(type, item) {
     }],
   });
 
-  // ── 랜딩페이지 (interest 제외) ──
-  if (!isInterest) {
-    blocks.push({
-      type: "input",
-      block_id: "landing_page_block",
-      optional: true,
-      label: { type: "plain_text", text: "랜딩페이지" },
-      element: {
-        type: "plain_text_input",
-        action_id: "landing_page",
-        ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
-        placeholder: { type: "plain_text", text: "하단 설명을 참고해서 입력해주세요." },
-      },
-    });
-    blocks.push({
-      type: "context",
-      elements: [{
-        type: "mrkdwn",
-        text: "• 팝업오픈(이벤트): E^000 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): N^0000 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): 모바일URL 입력 (랜딩페이지)\n• 그 외: 입력불요 (자동 공란)\n• 랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n  그 외 문의는 담당자(김수연 주임)에게 문의해주세요",
-      }],
-    });
-  }
+
+// ── 랜딩페이지 ──
+  blocks.push({
+    type: "input",
+    block_id: "landing_page_block",
+    optional: true,
+    label: { type: "plain_text", text: "랜딩페이지" },
+    element: {
+      type: "plain_text_input",
+      action_id: "landing_page",
+      ...(isEdit && item.landingPage ? { initial_value: item.landingPage } : {}),
+      placeholder: { type: "plain_text", text: "하단 설명을 참고해서 입력해주세요." },
+    },
+  });
+  blocks.push({
+    type: "context",
+    elements: [{
+      type: "mrkdwn",
+      text: "• 팝업오픈(이벤트): E^000 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): N^0000 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): 모바일URL 입력 (랜딩페이지)\n• 그 외: 입력불요 (자동 공란)\n• 랜딩페이지를 모를 경우 코어뱅킹UX부에 문의 부탁드리며,\n  그 외 문의는 담당자(김수연 주임)에게 문의해주세요",
+    }],
+  });
 
   // ── 배너이미지파일 (공지 텍스트만, 입력창 없음) ──
   blocks.push({
@@ -1247,14 +1246,27 @@ function buildModalBlocks(type, item) {
   return blocks;
 }
 
+/* 🔥 배너 글자수 카운트 (띄어쓰기/기호는 0.5자) */
+function countBannerChars(str) {
+  let count = 0;
+  for (const ch of str) {
+    if (/[a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ]/.test(ch)) {
+      count += 1;
+    } else {
+      count += 0.5;
+    }
+  }
+  return count;
+}
+
 function validateBannerText(type, banner, bannerDesc) {
   const errs = {};
   if (type === "home") {
-    const len = banner.length;
+    const len = countBannerChars(banner);
     if (len < 10)      errs.banner_block = `최소 글자수에 ${10 - len}글자 부족합니다`;
     else if (len > 16) errs.banner_block = `글자수 제한을 ${len - 16}글자 초과하였습니다`;
 
-    const dLen = bannerDesc.length;
+    const dLen = countBannerChars(bannerDesc);
     if (dLen < 8)      errs.banner_desc_block = `최소 글자수에 ${8 - dLen}글자 부족합니다`;
     else if (dLen > 19) errs.banner_desc_block = `글자수 제한을 ${dLen - 19}글자 초과하였습니다`;
   }
@@ -1264,16 +1276,18 @@ function validateBannerText(type, banner, bannerDesc) {
     const line2 = lines[1] ?? null;
 
     const msgs = [];
-    if (line1.length < 10)      msgs.push(`윗줄 최소 글자수에 ${10 - line1.length}글자 부족합니다`);
-    else if (line1.length > 12) msgs.push(`윗줄 글자수 제한을 ${line1.length - 12}글자 초과하였습니다`);
+    const len1 = countBannerChars(line1);
+    if (len1 < 10)      msgs.push(`윗줄 최소 글자수에 ${10 - len1}글자 부족합니다`);
+    else if (len1 > 12) msgs.push(`윗줄 글자수 제한을 ${len1 - 12}글자 초과하였습니다`);
 
     if (line2 !== null) {
-      if (line2.length < 5)      msgs.push(`아랫줄 최소 글자수에 ${5 - line2.length}글자 부족합니다`);
-      else if (line2.length > 9) msgs.push(`아랫줄 글자수 제한을 ${line2.length - 9}글자 초과하였습니다`);
+      const len2 = countBannerChars(line2);
+      if (len2 < 5)      msgs.push(`아랫줄 최소 글자수에 ${5 - len2}글자 부족합니다`);
+      else if (len2 > 9) msgs.push(`아랫줄 글자수 제한을 ${len2 - 9}글자 초과하였습니다`);
     }
     if (msgs.length > 0) errs.banner_block = msgs.join(" / ");
 
-    const dLen = bannerDesc.length;
+    const dLen = countBannerChars(bannerDesc);
     if (dLen < 7)      errs.banner_desc_block = `최소 글자수에 ${7 - dLen}글자 부족합니다`;
     else if (dLen > 12) errs.banner_desc_block = `글자수 제한을 ${dLen - 12}글자 초과하였습니다`;
   }
@@ -1488,10 +1502,8 @@ Object.keys(BANNER_TYPES).forEach((type) => {
     const linkType = v.link_type_block.link_type.selected_option?.value || "";
 
     const userLinkData = v.link_data_block?.link_data?.value || "";
-    const userLandingPage = isInterest ? "" : (v.landing_page_block?.landing_page?.value || "");
-    const { linkData, landingPage } = isInterest
-      ? { linkData: userLinkData, landingPage: "" }
-      : applyLinkAutoFill(linkType, userLinkData, userLandingPage);
+    const userLandingPage = v.landing_page_block?.landing_page?.value || "";
+    const { linkData, landingPage } = applyLinkAutoFill(linkType, userLinkData, userLandingPage);
 
     const list = await loadBannerData(type);
     const nonN2List = list.filter(item => item.mediaType !== "n2");
@@ -1593,10 +1605,8 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
   const linkType = v.link_type_block.link_type.selected_option?.value || "";
 
   const userLinkData = v.link_data_block?.link_data?.value || "";
-  const userLandingPage = isInterest ? "" : (v.landing_page_block?.landing_page?.value || "");
-  const { linkData, landingPage } = isInterest
-    ? { linkData: userLinkData, landingPage: "" }
-    : applyLinkAutoFill(linkType, userLinkData, userLandingPage);
+  const userLandingPage = v.landing_page_block?.landing_page?.value || "";
+  const { linkData, landingPage } = applyLinkAutoFill(linkType, userLinkData, userLandingPage);
 
   const list = await loadBannerData(type);
   const oldItem = list.find(i => i.id === id);
