@@ -23,11 +23,9 @@ mongoose.connection.on("error", (err) => console.log("❌ MongoDB 에러:", err.
 mongoose.connection.on("disconnected", () => {
   console.log("⚠️ MongoDB 연결 끊김, 재연결 시도...");
   setTimeout(() => {
-    mongoose.connect(process.env.MONGODB_URI, {
-  serverSelectionTimeoutMS: 10000,
-  socketTimeoutMS: 45000,
-  maxPoolSize: 10,
-}).catch(err => console.log("❌ MongoDB 초기 연결 실패:", err.message));
+    mongoose.connect(process.env.MONGODB_URI).catch(() => {});
+  }, 3000);
+});
 
 const bannerSchema = new mongoose.Schema({
   id: { type: String, index: true },
