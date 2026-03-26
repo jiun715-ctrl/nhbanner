@@ -1249,12 +1249,7 @@ function buildModalBlocks(type, item) {
 }
 
 function validateBannerText(type, banner, bannerDesc) {
-  const errs = {};
-  if (type === "home") {
-    const len = banner.length;
-    ...전체...
-  }
-  return errs;
+  return {};
 }
 
 /* ======================================================
