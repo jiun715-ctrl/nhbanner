@@ -16,7 +16,7 @@ mongoose.connect(process.env.MONGODB_URI, {
   serverSelectionTimeoutMS: 10000,
   socketTimeoutMS: 45000,
   maxPoolSize: 10,
-});
+}).catch(err => console.log("❌ MongoDB 초기 연결 실패:", err.message));
 
 mongoose.connection.on("connected", () => console.log("✅ MongoDB 연결 성공"));
 mongoose.connection.on("error", (err) => console.log("❌ MongoDB 에러:", err.message));
@@ -79,7 +79,6 @@ const BANNER_TYPE_AUTO = {
   interest: "99",
 };
 
-/* 🔥 관심종목탭 전용: 희망 탭 옵션 */
 const INTEREST_TAB_OPTIONS = [
   { value: "realtime_best", label: "실시간BEST" },
   { value: "expert_stock", label: "투자고수종목" },
@@ -94,20 +93,17 @@ const INTEREST_TAB_OPTIONS = [
 const INTEREST_RANK_LABELS = INTEREST_TAB_OPTIONS.map(o => o.label);
 const INTEREST_SLOT_VALUES = INTEREST_TAB_OPTIONS.map(o => o.value);
 
-/* 🔥 배너 타입별 최대 노출일수 */
 const MAX_EXPOSURE_DAYS = {
   home: 15,
   floating: 3,
   interest: 15,
 };
 
-/* 🔥 관리자 Slack User ID (등록 알림 수신) */
 const ADMIN_USER_IDS = (process.env.ADMIN_USER_ID || "")
   .split(",")
   .map(id => id.trim())
   .filter(Boolean);
 
-/* 🔥 바로가기속성 옵션 (non-interest) */
 const LINK_TYPE_OPTIONS = [
   { value: "screen_mts", label: "화면오픈(MTS화면)" },
   { value: "popup_event", label: "팝업오픈(이벤트)" },
@@ -116,7 +112,6 @@ const LINK_TYPE_OPTIONS = [
   { value: "url_external", label: "URL(외부페이지)" },
 ];
 
-/* 🔥 바로가기속성별 자동입력 값 */
 const LINK_AUTO_FILL = {
   popup_event:  { linkData: "X12m921g", landingPage: "E^000" },
   popup_notice: { linkData: "X12m921a", landingPage: "N^0000" },
@@ -131,7 +126,6 @@ function getDesiredTabLabel(value) {
 function getLinkTypeLabel(value) {
   const found = LINK_TYPE_OPTIONS.find(o => o.value === value);
   if (found) return found.label;
-  // interest용 or 구버전
   const legacy = { "screen": "화면오픈", "popup": "팝업오픈", "frame_popup": "프레임팝업", "url": "URL" };
   return legacy[value] || value || "—";
 }
@@ -266,7 +260,6 @@ receiver.router.use(cors({
     "https://nhbanner.vercel.app",
   ],
 }));
-
 
 /* ======================================================
  * 엑셀 메일 전송 API
@@ -536,7 +529,7 @@ async function getSlackUserName(userId) {
 }
 
 /* ======================================================
- * 날짜 유틸 (🔥 KST 기준으로 수정)
+ * 날짜 유틸 (KST 기준)
  * ====================================================== */
 
 function formatMMDD(date) {
@@ -565,7 +558,6 @@ function getTodayKST() {
 }
 
 function getThisWeekDates() {
-  // KST(UTC+9) 기준으로 오늘 날짜 계산
   const kstNow = new Date(Date.now() + 9 * 60 * 60 * 1000);
   const kstYear = kstNow.getUTCFullYear();
   const kstMonth = kstNow.getUTCMonth();
@@ -663,7 +655,7 @@ async function publishHome(userId) {
               "  • *[홈상단 배너]* 최대 15일\n" +
               "  • *[플로팅 배너]* 최대 3일\n" +
               "  • *[관심종목탭]* 최대 15일\n" +
-              "      ⚠️ (공통) 유사배너를 반복해서 올리는 경우 관리자 판단 하에 우선순위가 변경될 수 있습니다."                 
+              "      ⚠️ (공통) 유사배너를 반복해서 올리는 경우 관리자 판단 하에 우선순위가 변경될 수 있습니다.",
           },
         },
         { type: "divider" },
@@ -753,7 +745,6 @@ async function publishBannerMain(userId, type) {
   });
 
   dates.forEach((date) => {
-    // 🔥 KST 기준 UTC 메서드 사용
     const y = date.getUTCFullYear();
     const m = String(date.getUTCMonth() + 1).padStart(2, "0");
     const d = String(date.getUTCDate()).padStart(2, "0");
@@ -957,13 +948,12 @@ modalActionIds.forEach(actionId => {
   });
 });
 
-// 🔥 URL 버튼 클릭 ack 처리
 app.action("open_monthly_calendar", async ({ ack }) => {
   await ack();
 });
 
 /* ======================================================
- * 🔥 등록/수정 모달 블록 빌더
+ * 등록/수정 모달 블록 빌더
  * ====================================================== */
 
 function buildModalBlocks(type, item) {
@@ -998,8 +988,8 @@ function buildModalBlocks(type, item) {
   // ── 배너명 (interest 제외) ──
   if (!isInterest) {
     const bannerLabel = type === "home"
-      ? "배너명 (볼드체로 표시되는 최상단 문장. 10~16자)"
-      : "배너명 (윗줄 10~12자, 아랫줄 5~9자, 줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
+      ? "배너명 (볼드체로 표시되는 최상단 문장)"
+      : "배너명 (줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
     const bannerHint = type === "home"
       ? "ex) 이제 퇴직연금도 ELS!"
       : "ex) 미션 달성하고 달러받자\\n미국주식챌린지";
@@ -1022,8 +1012,8 @@ function buildModalBlocks(type, item) {
   // ── 배너내용 (interest 제외) ──
   if (!isInterest) {
     const descLabel = type === "home"
-      ? "서브타이틀 (두번째 줄에 표기되는 문장, 8~19자)"
-      : "배너내용 (7~12글자, 줄바꿈 불가)";
+      ? "서브타이틀 (두번째 줄에 표기되는 문장)"
+      : "배너내용 (줄바꿈 불가)";
     const descHint = type === "home"
       ? "ex) ELS 가입하고 이벤트 혜택까지"
       : "ex) 24시간 챌린지 참여하기";
@@ -1211,8 +1201,7 @@ function buildModalBlocks(type, item) {
     }],
   });
 
-
-// ── 랜딩페이지 ──
+  // ── 랜딩페이지 ──
   blocks.push({
     type: "input",
     block_id: "landing_page_block",
@@ -1251,7 +1240,7 @@ function validateBannerText(type, banner, bannerDesc) {
 }
 
 /* ======================================================
- * 🔥 등록/수정 시 바로가기속성에 따른 자동입력 처리
+ * 등록/수정 시 바로가기속성에 따른 자동입력 처리
  * ====================================================== */
 
 function applyLinkAutoFill(linkType, userLinkData, userLandingPage) {
@@ -1614,7 +1603,7 @@ app.view(/edit_modal_(.*)/, async ({ ack, view, body }) => {
 });
 
 /* ======================================================
- * 🔔 4일 전 리마인더 DM
+ * 4일 전 리마인더 DM (검증 포함)
  * ====================================================== */
 
 let lastReminderCheckDate = "";
@@ -1640,7 +1629,7 @@ async function checkReminders() {
             || getDesiredTabLabel(item.desiredTab)
             || "배너";
 
-          // 🔥 데이터 검증
+          // 데이터 검증
           const warnings = [];
           const isInterestType = type === "interest";
           const lt = item.linkType || "";
@@ -1690,7 +1679,6 @@ async function checkReminders() {
 
             await app.client.chat.postMessage({ channel: item.createdBy, text: reminderText });
 
-            // 관리자에게도 동일 발송 (등록자와 다른 경우만)
             for (const adminId of ADMIN_USER_IDS) {
               if (adminId !== item.createdBy) {
                 await app.client.chat.postMessage({ channel: adminId, text: reminderText });
@@ -1715,7 +1703,6 @@ async function checkReminders() {
 (async () => {
   const PORT = process.env.PORT || 3000;
 
-  // 🔥 MongoDB 연결 완료를 기다리지 않고 서버 먼저 시작
   try {
     await app.start(PORT);
     console.log(`⚡ Slack App 실행중 (port ${PORT})`);
