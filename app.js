@@ -998,8 +998,8 @@ function buildModalBlocks(type, item) {
   // ── 배너명 (interest 제외) ──
   if (!isInterest) {
     const bannerLabel = type === "home"
-      ? "배너명 (볼드체로 표시되는 최상단 문장. 10~16자)"
-      : "배너명 (윗줄 10~12자, 아랫줄 5~9자, 줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
+      ? "배너명 (볼드체로 표시되는 최상단 문장)"
+      : "배너명 (줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
     const bannerHint = type === "home"
       ? "ex) 이제 퇴직연금도 ELS!"
       : "ex) 미션 달성하고 달러받자\\n미국주식챌린지";
@@ -1022,8 +1022,8 @@ function buildModalBlocks(type, item) {
   // ── 배너내용 (interest 제외) ──
   if (!isInterest) {
     const descLabel = type === "home"
-      ? "서브타이틀 (두번째 줄에 표기되는 문장. 8~19자)"
-      : "배너내용 (7~12글자, 줄바꿈 불가)";
+      ? "서브타이틀 (두번째 줄에 표기되는 문장)"
+      : "배너내용 (줄바꿈 불가)";
     const descHint = type === "home"
       ? "ex) ELS 가입하고 이벤트 혜택까지"
       : "ex) 24시간 챌린지 참여하기";
@@ -1246,50 +1246,11 @@ function buildModalBlocks(type, item) {
   return blocks;
 }
 
-/* 🔥 배너 글자수 카운트 (띄어쓰기/기호는 0.5자) */
-function countBannerChars(str) {
-  let count = 0;
-  for (const ch of str) {
-    if (/[a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ]/.test(ch)) {
-      count += 1;
-    } else {
-      count += 0.5;
-    }
-  }
-  return count;
-}
-
 function validateBannerText(type, banner, bannerDesc) {
   const errs = {};
   if (type === "home") {
-    const len = countBannerChars(banner);
-    if (len < 10)      errs.banner_block = `최소 글자수에 ${10 - len}글자 부족합니다`;
-    else if (len > 16) errs.banner_block = `글자수 제한을 ${len - 16}글자 초과하였습니다`;
-
-    const dLen = countBannerChars(bannerDesc);
-    if (dLen < 8)      errs.banner_desc_block = `최소 글자수에 ${8 - dLen}글자 부족합니다`;
-    else if (dLen > 19) errs.banner_desc_block = `글자수 제한을 ${dLen - 19}글자 초과하였습니다`;
-  }
-  if (type === "floating") {
-    const lines = banner.split("\\n");
-    const line1 = lines[0] || "";
-    const line2 = lines[1] ?? null;
-
-    const msgs = [];
-    const len1 = countBannerChars(line1);
-    if (len1 < 10)      msgs.push(`윗줄 최소 글자수에 ${10 - len1}글자 부족합니다`);
-    else if (len1 > 12) msgs.push(`윗줄 글자수 제한을 ${len1 - 12}글자 초과하였습니다`);
-
-    if (line2 !== null) {
-      const len2 = countBannerChars(line2);
-      if (len2 < 5)      msgs.push(`아랫줄 최소 글자수에 ${5 - len2}글자 부족합니다`);
-      else if (len2 > 9) msgs.push(`아랫줄 글자수 제한을 ${len2 - 9}글자 초과하였습니다`);
-    }
-    if (msgs.length > 0) errs.banner_block = msgs.join(" / ");
-
-    const dLen = countBannerChars(bannerDesc);
-    if (dLen < 7)      errs.banner_desc_block = `최소 글자수에 ${7 - dLen}글자 부족합니다`;
-    else if (dLen > 12) errs.banner_desc_block = `글자수 제한을 ${dLen - 12}글자 초과하였습니다`;
+    const len = banner.length;
+    ...전체...
   }
   return errs;
 }
