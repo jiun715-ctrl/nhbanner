@@ -998,8 +998,8 @@ function buildModalBlocks(type, item) {
   // ── 배너명 (interest 제외) ──
   if (!isInterest) {
     const bannerLabel = type === "home"
-      ? "배너명 (볼드체로 표시되는 최상단 문장)"
-      : "배너명 (줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
+      ? "배너명 (볼드체로 표시되는 최상단 문장. 10~16자)"
+      : "배너명 (윗줄 10~12자, 아랫줄 5~9자, 줄바꿈 희망 시 심볼 '\\n' 을 넣어주세요)";
     const bannerHint = type === "home"
       ? "ex) 이제 퇴직연금도 ELS!"
       : "ex) 미션 달성하고 달러받자\\n미국주식챌린지";
@@ -1022,8 +1022,8 @@ function buildModalBlocks(type, item) {
   // ── 배너내용 (interest 제외) ──
   if (!isInterest) {
     const descLabel = type === "home"
-      ? "서브타이틀 (두번째 줄에 표기되는 문장)"
-      : "배너내용 (줄바꿈 불가)";
+      ? "서브타이틀 (두번째 줄에 표기되는 문장, 8~19자)"
+      : "배너내용 (7~12글자, 줄바꿈 불가)";
     const descHint = type === "home"
       ? "ex) ELS 가입하고 이벤트 혜택까지"
       : "ex) 24시간 챌린지 참여하기";
@@ -1206,7 +1206,7 @@ function buildModalBlocks(type, item) {
     elements: [{
       type: "mrkdwn",
       text: isInterest
-        ? "• 화면[배너형]: 화면번호 입력 (ex: X08m5132)\n• URL[배너형]: 외부 URL 입력"
+        ? "아래 가이드에 따른 (코드)를 입력해주세요.\n• 화면[배너형]: (화면번호) 또는 이벤트(X12m921g), 공지사항(X12m921a), 콘텐츠(X08m5132)\n• URL[배너형]: 외부 URL"
         : "• 화면오픈(MTS화면): 화면번호 입력 (ex: X08m5132)\n• 팝업오픈(이벤트): X12m921g 자동입력됨 — 비워두세요\n• 팝업오픈(공지사항): X12m921a 자동입력됨 — 비워두세요\n• 팝업오픈(콘텐츠): X08m5132 자동입력됨 — 비워두세요\n• URL(외부페이지): 외부 URL 입력",
     }],
   });
@@ -1644,11 +1644,58 @@ async function checkReminders() {
           const displayName = item.banner
             || getDesiredTabLabel(item.desiredTab)
             || "배너";
+
+          // 🔥 데이터 검증
+          const warnings = [];
+          const isInterestType = type === "interest";
+          const lt = item.linkType || "";
+          const ld = item.linkData || "";
+          const lp = item.landingPage || "";
+
+          // 1) 홈/플로팅 URL(외부페이지) → 랜딩페이지에 URL 형태인지
+          if (!isInterestType && lt === "url_external") {
+            if (!lp || !lp.startsWith("http")) {
+              warnings.push("⚠️ 바로가기속성이 URL(외부페이지)인데 랜딩페이지에 URL이 입력되지 않았습니다.");
+            }
+          }
+
+          // 2) 홈/플로팅 팝업오픈(콘텐츠) → 랜딩페이지에 URL 형태인지
+          if (!isInterestType && lt === "popup_content") {
+            if (!lp || !lp.startsWith("http")) {
+              warnings.push("⚠️ 바로가기속성이 팝업오픈(콘텐츠)인데 랜딩페이지에 URL이 입력되지 않았습니다.");
+            }
+          }
+
+          // 3) 관심그룹탭 URL[배너형] → 바로가기링크에 URL 형태인지
+          if (isInterestType && lt === "url") {
+            if (!ld || !ld.startsWith("http")) {
+              warnings.push("⚠️ 바로가기속성이 URL[배너형]인데 바로가기링크에 URL이 입력되지 않았습니다.");
+            }
+          }
+
+          // 4) 팝업오픈(이벤트/공지사항) → 랜딩페이지 뒷자리가 000/0000이면 미수정
+          if (lt === "popup_event" && /E\^0+$/.test(lp)) {
+            warnings.push("⚠️ 랜딩페이지 코드가 아직 초기값입니다. (E^000 → 실제 코드로 변경 필요)");
+          }
+          if (lt === "popup_notice" && /N\^0+$/.test(lp)) {
+            warnings.push("⚠️ 랜딩페이지 코드가 아직 초기값입니다. (N^0000 → 실제 코드로 변경 필요)");
+          }
+
           try {
-            const reminderText = `📢 *"${displayName}"* 노출 시작 4일 전입니다.\n담당자(김수연 주임)에게 이미지 파일(png)을 전달해주세요.`;
+            let reminderText =
+              `📢 등록하신 *"${displayName}"* 의 노출이 4일 남았습니다.\n` +
+              `아래 항목이 맞는지 확인해주세요.\n\n` +
+              `• 배너 이미지 파일을 김수연 주임에게 전달 하셨나요?\n` +
+              `• URL주소를 맞게 입력하셨나요?\n` +
+              `• 랜딩페이지의 코드를 최신화 하셨나요? (ex. E^000 → E^981)`;
+
+            if (warnings.length > 0) {
+              reminderText += `\n\n🔎 *자동 검증 결과:*\n${warnings.join("\n")}`;
+            }
 
             await app.client.chat.postMessage({ channel: item.createdBy, text: reminderText });
 
+            // 관리자에게도 동일 발송 (등록자와 다른 경우만)
             for (const adminId of ADMIN_USER_IDS) {
               if (adminId !== item.createdBy) {
                 await app.client.chat.postMessage({ channel: adminId, text: reminderText });
