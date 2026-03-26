@@ -23,9 +23,11 @@ mongoose.connection.on("error", (err) => console.log("❌ MongoDB 에러:", err.
 mongoose.connection.on("disconnected", () => {
   console.log("⚠️ MongoDB 연결 끊김, 재연결 시도...");
   setTimeout(() => {
-    mongoose.connect(process.env.MONGODB_URI).catch(() => {});
-  }, 3000);
-});
+    mongoose.connect(process.env.MONGODB_URI, {
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
+  maxPoolSize: 10,
+}).catch(err => console.log("❌ MongoDB 초기 연결 실패:", err.message));
 
 const bannerSchema = new mongoose.Schema({
   id: { type: String, index: true },
@@ -1719,8 +1721,15 @@ async function checkReminders() {
 
 (async () => {
   const PORT = process.env.PORT || 3000;
-  await app.start(PORT);
-  console.log(`⚡ Slack App 실행중 (port ${PORT})`);
+
+  // 🔥 MongoDB 연결 완료를 기다리지 않고 서버 먼저 시작
+  try {
+    await app.start(PORT);
+    console.log(`⚡ Slack App 실행중 (port ${PORT})`);
+  } catch (e) {
+    console.log("❌ 서버 시작 실패:", e.message);
+    process.exit(1);
+  }
 
   setInterval(checkReminders, 60 * 60 * 1000);
   setTimeout(checkReminders, 15000);
