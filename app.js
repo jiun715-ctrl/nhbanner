@@ -800,21 +800,21 @@ async function publishBannerMain(userId, type) {
  * 내 예약 보기
  * ====================================================== */
 
-async function publishMyReservations(userId, type) {
+async function publishMyReservations(userId, type, page = 0) {
   const targetTypes = type ? [type] : Object.keys(BANNER_TYPES);
 
-   const allMyItems = [];
+  const allMyItems = [];
   for (const t of targetTypes) {
     const data = await loadBannerData(t);
     const mine = data.filter((item) => item.createdBy === userId);
     mine.forEach((item) => allMyItems.push({ ...item, _type: t }));
   }
+
   const MAX_ITEMS = 30;
-  const truncated = allMyItems.length > MAX_ITEMS;
-  const displayItems = allMyItems
-  .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  .slice(0, MAX_ITEMS);
-  
+  const sorted = allMyItems.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  const totalPages = Math.max(1, Math.ceil(sorted.length / MAX_ITEMS));
+  const currentPage = Math.min(page, totalPages - 1);
+  const displayItems = sorted.slice(currentPage * MAX_ITEMS, (currentPage + 1) * MAX_ITEMS);
 
   const blocks = [
     {
@@ -845,19 +845,42 @@ async function publishMyReservations(userId, type) {
     { type: "divider" },
   ];
 
+  // ── 페이지 네비게이션 (2페이지 이상일 때만) ──
+  if (totalPages > 1) {
+    const navElements = [];
+    if (currentPage > 0) {
+      navElements.push({
+        type: "button",
+        text: { type: "plain_text", text: "◀ 이전" },
+        action_id: "reservations_prev_page",
+        value: `${type || "all"}:${currentPage - 1}`,
+      });
+    }
+    navElements.push({
+      type: "button",
+      text: { type: "plain_text", text: `${currentPage + 1} / ${totalPages}페이지` },
+      action_id: "reservations_page_noop",
+      value: "noop",
+    });
+    if (currentPage < totalPages - 1) {
+      navElements.push({
+        type: "button",
+        text: { type: "plain_text", text: "다음 ▶" },
+        action_id: "reservations_next_page",
+        value: `${type || "all"}:${currentPage + 1}`,
+      });
+    }
+    blocks.push({ type: "actions", elements: navElements });
+    blocks.push({ type: "divider" });
+  }
+
   if (displayItems.length === 0) {
     blocks.push({
       type: "section",
       text: { type: "mrkdwn", text: "등록한 예약이 없습니다." },
     });
   } else {
-  if (truncated) {
-    blocks.push({
-      type: "section",
-      text: { type: "mrkdwn", text: `⚠️ 예약 건수가 많아 최근 ${MAX_ITEMS}건만 표시됩니다.` },
-    });
-  }
-  displayItems.forEach((item) => {
+    displayItems.forEach((item) => {
       const typeLabel = BANNER_TYPES[item._type] || item._type;
       const mediaLabel = { "common": "공통", "tree": "나무", "n2": "N2" }[item.mediaType] || item.mediaType || "";
       const priorityText = item.mediaType === "n2" ? "우선순위: —" : `우선순위: ${item.priority || "—"}`;
@@ -942,6 +965,24 @@ app.action("filter_my_floating", async ({ ack, body }) => {
 app.action("filter_my_interest", async ({ ack, body }) => {
   await ack();
   publishMyReservations(body.user.id, "interest").catch(e => console.log("filter_my_interest 실패:", e.message));
+});
+
+app.action("reservations_prev_page", async ({ ack, body }) => {
+  await ack();
+  const [t, p] = body.actions?.[0]?.value.split(":");
+  const type = t === "all" ? null : t;
+  publishMyReservations(body.user.id, type, Number(p)).catch(e => console.log("reservations_prev_page 실패:", e.message));
+});
+
+app.action("reservations_next_page", async ({ ack, body }) => {
+  await ack();
+  const [t, p] = body.actions?.[0]?.value.split(":");
+  const type = t === "all" ? null : t;
+  publishMyReservations(body.user.id, type, Number(p)).catch(e => console.log("reservations_next_page 실패:", e.message));
+});
+
+app.action("reservations_page_noop", async ({ ack }) => {
+  await ack();
 });
 
 /* ======================================================
