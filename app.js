@@ -814,7 +814,7 @@ async function publishMyReservations(userId, type) {
   const displayItems = allMyItems
   .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   .slice(0, MAX_ITEMS);
-  }
+  
 
   const blocks = [
     {
