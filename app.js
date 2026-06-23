@@ -803,11 +803,17 @@ async function publishBannerMain(userId, type) {
 async function publishMyReservations(userId, type) {
   const targetTypes = type ? [type] : Object.keys(BANNER_TYPES);
 
-  const allMyItems = [];
+   const allMyItems = [];
   for (const t of targetTypes) {
     const data = await loadBannerData(t);
     const mine = data.filter((item) => item.createdBy === userId);
     mine.forEach((item) => allMyItems.push({ ...item, _type: t }));
+  }
+  const MAX_ITEMS = 30;
+  const truncated = allMyItems.length > MAX_ITEMS;
+  const displayItems = allMyItems
+  .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  .slice(0, MAX_ITEMS);
   }
 
   const blocks = [
@@ -839,13 +845,19 @@ async function publishMyReservations(userId, type) {
     { type: "divider" },
   ];
 
-  if (allMyItems.length === 0) {
+  if (displayItems.length === 0) {
     blocks.push({
       type: "section",
       text: { type: "mrkdwn", text: "등록한 예약이 없습니다." },
     });
   } else {
-    allMyItems.forEach((item) => {
+  if (truncated) {
+    blocks.push({
+      type: "section",
+      text: { type: "mrkdwn", text: `⚠️ 예약 건수가 많아 최근 ${MAX_ITEMS}건만 표시됩니다.` },
+    });
+  }
+  displayItems.forEach((item) => {
       const typeLabel = BANNER_TYPES[item._type] || item._type;
       const mediaLabel = { "common": "공통", "tree": "나무", "n2": "N2" }[item.mediaType] || item.mediaType || "";
       const priorityText = item.mediaType === "n2" ? "우선순위: —" : `우선순위: ${item.priority || "—"}`;
